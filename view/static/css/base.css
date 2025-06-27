@@ -1,0 +1,25 @@
+h1 {
+	text-align: center;
+	margin-bottom: 30px;
+	color: #333;
+}
+
+.add-note {
+	display: block;
+	width: 200px;
+	margin: 0 auto 40px;
+	padding: 12px;
+	background-color: #4caf50;
+	color: white;
+	border: none;
+	border-radius: 6px;
+	text-align: center;
+	text-decoration: none;
+	font-weight: bold;
+	cursor: pointer;
+	transition: background-color 0.3s;
+}
+
+.add-note:hover {
+	background-color: #45a049;
+}

@@ -1,0 +1,9 @@
+{{ define "title" }} Nova Nota {{ end }}
+{{ define "content" }}
+    <h1>Nova Nota</h1>
+    <form action="/create" method="POST">
+        <input type="text" name="noteName" placeholder="Título da nota">
+        <textarea name="noteContent" placeholder="Conteúdo da nota"></textarea>
+        <button type="submit">Salvar</button>
+    </form>
+{{ end }}
