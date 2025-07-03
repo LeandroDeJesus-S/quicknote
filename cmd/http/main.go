@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"html/template"
+	"log/slog"
 	"net/http"
 
 	"github.com/LeandroDeJesus-S/quicknote/config"
@@ -14,14 +15,14 @@ func homeHandler(w http.ResponseWriter, r *http.Request) {
 		"view/templates/pages/home.html",
 	)
 	if err != nil {
+		slog.Error("cannot parse templates", "err", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	fmt.Println(tpl.DefinedTemplates())
-
 	err = tpl.ExecuteTemplate(w, "base.html", nil)
 	if err != nil {
+		slog.Error("error executing template", "err", err.Error())
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -78,23 +79,19 @@ func notesCreate(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	conf := config.MustLoadConfig()
-	// fmt.Println("listening port", conf.ServerPort)
 
-	fmt.Println(conf)
-
-	if err := conf.LoadFromEnv(); err != nil {
-		panic(err)
-	}
-	fmt.Println(conf.ServerHost, conf.ServerPort, conf.SecretKey)
-	// mux := http.NewServeMux()
-
-	// staticHandle := http.FileServer(http.Dir("view/static/"))
-	// mux.Handle("/static/", http.StripPrefix("/static/", staticHandle))
+	slog.SetDefault(config.NewLogger(conf.LogOut(), conf.LogLevel()))
+	slog.Info("configurations loaded successfully", "server_host", conf.ServerHost, "server_port", conf.ServerPort)
 	
-	// mux.HandleFunc("/", homeHandler)
-	// mux.HandleFunc("/notes", listNotes)
-	// mux.HandleFunc("/notes/detail", notesDetail)
-	// mux.HandleFunc("/notes/create", notesCreate)
+	mux := http.NewServeMux()
+
+	staticHandle := http.FileServer(http.Dir("view/static/"))
+	mux.Handle("/static/", http.StripPrefix("/static/", staticHandle))
 	
-	// http.ListenAndServe(fmt.Sprintf("%s:%s", conf.ServerHost, conf.ServerPort), mux)
+	mux.HandleFunc("/", homeHandler)
+	mux.HandleFunc("/notes", listNotes)
+	mux.HandleFunc("/notes/detail", notesDetail)
+	mux.HandleFunc("/notes/create", notesCreate)
+	
+	http.ListenAndServe(fmt.Sprintf("%s:%s", conf.ServerHost, conf.ServerPort), mux)
 }

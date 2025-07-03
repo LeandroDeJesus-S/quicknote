@@ -3,6 +3,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"reflect"
 	"strings"
@@ -11,9 +13,16 @@ import (
 )
 
 type Config struct {
+	// server configs
 	ServerHost string `env:"SERVER_HOST,localhost"`
 	ServerPort string `env:"SERVER_PORT,8000"`
-	SecretKey  string `env:"SECRET_KEY,required"`
+
+	// secrets
+	SecretKey string `env:"SECRET_KEY,required"` // a key used to hashing and encryption tasks
+
+	// logging configs
+	logLevel string `env:"LOG_LEVEL,info"` // the level of logging
+	logOut   string `env:"LOG_OUT,stdout"` // the output of logging
 }
 
 func (c Config) String() (vars string) {
@@ -27,9 +36,13 @@ func (c Config) String() (vars string) {
 	return
 }
 
-func (c Config) LoadFromEnv() error {
-	s := reflect.ValueOf(&c)
-	st := reflect.TypeOf(c)
+// LoadFromEnv populates the Config struct fields with environment variables.
+// It reads the 'env' tag of each field to determine the environment variable name
+// and its default value. If an environment variable is not set and the default value
+// is marked as "required", it collects an error message.
+func (c *Config) LoadFromEnv() error {
+	s := reflect.ValueOf(c)
+	st := reflect.TypeOf(*c)
 	var errorMsgs []string
 
 	for i := range st.NumField() {
@@ -54,13 +67,42 @@ func (c Config) LoadFromEnv() error {
 	return nil
 }
 
+func (c Config) LogLevel() slog.Level {
+	switch c.logLevel {
+	case "debug":
+		return slog.LevelDebug
+	case "info":
+		return slog.LevelInfo
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+func (c Config) LogOut() io.Writer {
+	switch c.logOut {
+	case "stdout":
+		return os.Stdout
+	case "stderr":
+		return os.Stderr
+	default:
+		return os.Stdout
+	}
+}
+
 func MustLoadConfig() *Config {
 	err := godotenv.Load()
 	if err != nil {
+		slog.Error("couldn't load env vars", "error", err.Error())
 		panic(err)
 	}
-	return &Config{
-		ServerHost: os.Getenv("SERVER_HOST"),
-		ServerPort: os.Getenv("SERVER_PORT"),
+	conf := &Config{}
+	if err := conf.LoadFromEnv(); err != nil {
+		slog.Error("couldn't load settings", "error", err.Error())
+		panic(err)
 	}
+	return conf
 }
