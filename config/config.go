@@ -21,8 +21,8 @@ type Config struct {
 	SecretKey string `env:"SECRET_KEY,required"` // a key used to hashing and encryption tasks
 
 	// logging configs
-	logLevel string `env:"LOG_LEVEL,info"` // the level of logging
-	logOut   string `env:"LOG_OUT,stdout"` // the output of logging
+	LogLevel string `env:"LOG_LEVEL,info"` // the level of logging
+	LogOut   string `env:"LOG_OUT,stdout"` // the output of logging
 }
 
 func (c Config) String() (vars string) {
@@ -67,8 +67,8 @@ func (c *Config) LoadFromEnv() error {
 	return nil
 }
 
-func (c Config) LogLevel() slog.Level {
-	switch c.logLevel {
+func (c Config) LoggerLevel() slog.Level {
+	switch c.LogLevel {
 	case "debug":
 		return slog.LevelDebug
 	case "info":
@@ -82,8 +82,8 @@ func (c Config) LogLevel() slog.Level {
 	}
 }
 
-func (c Config) LogOut() io.Writer {
-	switch c.logOut {
+func (c Config) LoggerOut() io.Writer {
+	switch c.LogOut {
 	case "stdout":
 		return os.Stdout
 	case "stderr":
