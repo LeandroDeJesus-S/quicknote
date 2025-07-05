@@ -19,6 +19,7 @@ type Config struct {
 
 	// secrets
 	SecretKey string `env:"SECRET_KEY,required"` // a key used to hashing and encryption tasks
+	DatabaseURL     string `env:"DATABASE_URL,required"`
 
 	// logging configs
 	LogLevel string `env:"LOG_LEVEL,info"` // the level of logging
@@ -94,11 +95,17 @@ func (c Config) LoggerOut() io.Writer {
 }
 
 func MustLoadConfig() *Config {
-	err := godotenv.Load()
-	if err != nil {
-		slog.Error("couldn't load env vars", "error", err.Error())
-		panic(err)
+	if os.Getenv("GODOTENV") == "1" {
+		slog.Info("loading env vars from .env file")
+		err := godotenv.Load()
+		if err != nil {
+			slog.Error("couldn't load env vars", "error", err.Error())
+			panic(err)
+		}
+	} else {
+		slog.Info("loading env vars directly from os")
 	}
+
 	conf := &Config{}
 	if err := conf.LoadFromEnv(); err != nil {
 		slog.Error("couldn't load settings", "error", err.Error())

@@ -1,0 +1,12 @@
+services:
+  app:
+    build: .
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - LOG_LEVEL=${LOG_LEVEL}
+      - SECRET_KEY=${SECRET_KEY}
+      - GODOTENV=0
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    env_file:
+      - ./.env

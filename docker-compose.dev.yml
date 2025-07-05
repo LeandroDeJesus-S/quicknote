@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    
+    environment:
+      POSTGRES_DB: quicknotes_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+  
+  app:
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - LOG_LEVEL=${LOG_LEVEL}
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - GODOTENV=0
+    ports:
+      - "${SERVER_PORT}:${SERVER_PORT}"
+    env_file:
+      - ./.env
+    depends_on:
+      - db
+    
+    image: cosmtrek/air:latest
+    working_dir: /app
+    volumes:
+      - ./:/app
+
+volumes:
+  pgdata:

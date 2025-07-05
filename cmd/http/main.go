@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
 
 	"github.com/LeandroDeJesus-S/quicknote/config"
+	"github.com/LeandroDeJesus-S/quicknote/config/db"
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
 	"github.com/LeandroDeJesus-S/quicknote/internal/handler"
 )
@@ -31,6 +33,9 @@ func homeHandler(w http.ResponseWriter, r *http.Request) error {
 
 func main() {
 	conf := config.MustLoadConfig()
+
+	pool := db.MustConnect(context.Background(), conf.DatabaseURL)
+	defer pool.Close()
 
 	slog.SetDefault(config.NewLogger(conf.LoggerOut(), conf.LoggerLevel()))
 	slog.Info("configurations loaded successfully", "server_host", conf.ServerHost, "server_port", conf.ServerPort)
