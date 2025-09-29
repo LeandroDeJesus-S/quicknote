@@ -4,6 +4,13 @@ services:
     restart: always
     shm_size: 128mb
     
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d quicknotes_db"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 10s
+
     environment:
       POSTGRES_DB: quicknotes_db
       POSTGRES_USER: postgres
@@ -12,12 +19,16 @@ services:
       - pgdata:/var/lib/postgresql/data
     ports:
       - 5432:5432
+    networks:
+      - app_network
 
   adminer:
     image: adminer
     restart: always
     ports:
       - 8080:8080
+    networks:
+      - app_network
   
   app:
     environment:
@@ -31,7 +42,10 @@ services:
     env_file:
       - ./.env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
     
     image: cosmtrek/air:latest
     working_dir: /app
@@ -40,3 +54,7 @@ services:
 
 volumes:
   pgdata:
+
+networks:
+  app_network:
+    driver: bridge

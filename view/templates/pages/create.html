@@ -1,9 +1,16 @@
 {{ define "title" }} Nova Nota {{ end }}
 {{ define "content" }}
     <h1>Nova Nota</h1>
-    <form action="/create" method="POST">
-        <input type="text" name="noteName" placeholder="Título da nota">
-        <textarea name="noteContent" placeholder="Conteúdo da nota"></textarea>
+    <form action="/notes/create" method="POST" style="display: grid; grid-template-columns: 1fr; max-width: 600px; margin: 0 auto;">
+        <div style="width: 100%">
+            <input type="text" name="title" placeholder="Título da nota" required style="width: 100%">
+        </div>
+        <div style="width: 100%">
+            <textarea name="content" placeholder="Conteúdo da nota" required style="width: 100%"></textarea>
+        </div>
+        <div style="width: 100%">
+            <input type="color" name="color" required style="width: 100%">
+        </div>
         <button type="submit">Salvar</button>
     </form>
 {{ end }}

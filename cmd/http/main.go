@@ -11,6 +11,7 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/config/db"
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
 	"github.com/LeandroDeJesus-S/quicknote/internal/handler"
+	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 )
 
 func homeHandler(w http.ResponseWriter, r *http.Request) error {
@@ -40,9 +41,11 @@ func main() {
 	slog.SetDefault(config.NewLogger(conf.LoggerOut(), conf.LoggerLevel()))
 	slog.Info("configurations loaded successfully", "server_host", conf.ServerHost, "server_port", conf.ServerPort)
 
+	noteRepo := repo.NewNoteRepo(pool)
+
 	mux := http.NewServeMux()
 
-	noteHandler := handler.NewNoteHandler()
+	noteHandler := handler.NewNoteHandler(noteRepo)
 
 	staticHandle := http.FileServer(http.Dir("view/static/"))
 	mux.Handle("/static/", http.StripPrefix("/static/", staticHandle))

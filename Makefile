@@ -17,3 +17,9 @@ ddown:
 
 shut:
 	docker stop $(shell docker ps -q)
+
+migrate:
+	migrate -database ${DATABASE_URL} -path ./migrations up
+demigrate:
+	migrate -database ${DATABASE_URL} -path ./migrations down
+

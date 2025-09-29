@@ -1,27 +1,39 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"strconv"
 	"text/template"
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
+	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 )
 
-type noteHandler struct {}
-
-func NewNoteHandler() *noteHandler {
-	return new(noteHandler)
+type noteHandler struct {
+	noteRepo repo.Noter
 }
 
-func (noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
-	w.Header().Set("teste", "123")
-	w.Header().Set("teste", "456")
-	fmt.Fprint(w, "List Notes")
+func NewNoteHandler(noteRepo repo.Noter) *noteHandler {
+	return &noteHandler{noteRepo: noteRepo}
+}
+
+func (nh noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
+	notes, err := nh.noteRepo.List()
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "error listing notes")
+	}
+
+	if err := json.NewEncoder(w).Encode(notes); err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "error encoding notes")
+	}
+
 	return nil
 }
 
-func (noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error {
+func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -40,19 +52,29 @@ func (noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error {
 	if noteId == "" {
 		return errs.NewHTTPError(nil, http.StatusBadRequest, "id is required")
 	}
-	
-	err = tpl.ExecuteTemplate(w, "base.html", map[string]string{"noteName": noteId, "noteContent": "-"})
+
+	id, err := strconv.Atoi(noteId)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
+	}
+
+	note, err := nr.noteRepo.ReadOne(id)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "error reading note")
+	}
+
+	err = tpl.ExecuteTemplate(w, "base.html", map[string]string{"noteName": note.Title.String, "noteContent": note.Color.String})
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "error executing template")
 	}
 	return nil
 }
 
-func (noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
+func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodGet {
 		tpl, err := template.ParseFiles(
 			"view/templates/base.html",
-			"view/templates/create.html",
+			"view/templates/pages/create.html",
 		)
 		if err != nil {
 			return errs.NewHTTPError(err, http.StatusInternalServerError, "cannot parse templates")
@@ -60,7 +82,26 @@ func (noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
 		if err := tpl.ExecuteTemplate(w, "base.html", nil); err != nil {
 			return errs.NewHTTPError(err, http.StatusInternalServerError, "error executing template")
 		}
+
+		slog.Debug("template for create notes was executed successfully")
+		return nil
 	}
-	fmt.Fprint(w, "Notes Create")
+
+	if err := r.ParseForm(); err != nil {
+		return errs.NewHTTPError(err, http.StatusBadRequest, "error parsing form")
+	}
+	defer r.Body.Close()
+
+	newNote, err := nh.noteRepo.Create(
+		r.PostForm.Get("title"),
+		r.PostForm.Get("content"),
+		r.PostForm.Get("color"),
+	)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "error creating note")
+	}
+
+	slog.Debug("note created successfully", "note_id", newNote.ID.Int)
+	http.Redirect(w, r, fmt.Sprintf("/notes/detail?id=%d", newNote.ID.Int), http.StatusFound)
 	return nil
 }
