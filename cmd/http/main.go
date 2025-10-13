@@ -54,6 +54,7 @@ func main() {
 	mux.Handle("/notes", handler.ErrorHandler(noteHandler.ListNotes))
 	mux.Handle("/notes/detail", handler.ErrorHandler(noteHandler.NotesDetail))
 	mux.Handle("/notes/create", handler.ErrorHandler(noteHandler.NotesCreate))
+	mux.Handle("/notes/delete", handler.ErrorHandler(noteHandler.NotesDelete))
 
 	http.ListenAndServe(fmt.Sprintf("%s:%s", conf.ServerHost, conf.ServerPort), mux)
 }

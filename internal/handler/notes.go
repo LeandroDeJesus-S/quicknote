@@ -1,12 +1,10 @@
 package handler
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
-	"text/template"
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
@@ -21,16 +19,15 @@ func NewNoteHandler(noteRepo repo.Noter) *noteHandler {
 }
 
 func (nh noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
-	notes, err := nh.noteRepo.List()
+	notes, err := nh.noteRepo.List(r.Context())
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "error listing notes")
 	}
 
-	if err := json.NewEncoder(w).Encode(notes); err != nil {
-		return errs.NewHTTPError(err, http.StatusInternalServerError, "error encoding notes")
-	}
-
-	return nil
+	return render(
+		w,
+		newRenderOpts().WithPage("list.html").WithData(newNoteDTOList(notes)),
+	)
 }
 
 func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error {
@@ -38,14 +35,6 @@ func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return errs.NewHTTPError(nil, http.StatusMethodNotAllowed, "method not allowed")
-	}
-
-	tpl, err := template.ParseFiles(
-		"view/templates/base.html",
-		"view/templates/pages/detail.html",
-	)
-	if err != nil {
-		return errs.NewHTTPError(err, http.StatusInternalServerError, "cannot parse templates")
 	}
 
 	noteId := r.URL.Query().Get("id")
@@ -58,33 +47,25 @@ func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 		return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
 	}
 
-	note, err := nr.noteRepo.ReadOne(id)
+	note, err := nr.noteRepo.ReadOne(r.Context(), id)
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "error reading note")
 	}
 
-	err = tpl.ExecuteTemplate(w, "base.html", map[string]string{"noteName": note.Title.String, "noteContent": note.Color.String})
-	if err != nil {
-		return errs.NewHTTPError(err, http.StatusInternalServerError, "error executing template")
-	}
-	return nil
+	return render(
+		w,
+		newRenderOpts().WithPage("detail.html").WithData(
+			map[string]string{"noteName": note.Title.String, "noteContent": note.Content.String},
+		),
+	)
 }
 
 func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == http.MethodGet {
-		tpl, err := template.ParseFiles(
-			"view/templates/base.html",
-			"view/templates/pages/create.html",
+		return render(
+			w,
+			newRenderOpts().WithPage("create.html").WithData(newNoteRequestDTO()),
 		)
-		if err != nil {
-			return errs.NewHTTPError(err, http.StatusInternalServerError, "cannot parse templates")
-		}
-		if err := tpl.ExecuteTemplate(w, "base.html", nil); err != nil {
-			return errs.NewHTTPError(err, http.StatusInternalServerError, "error executing template")
-		}
-
-		slog.Debug("template for create notes was executed successfully")
-		return nil
 	}
 
 	if err := r.ParseForm(); err != nil {
@@ -93,6 +74,7 @@ func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error 
 	defer r.Body.Close()
 
 	newNote, err := nh.noteRepo.Create(
+		r.Context(),
 		r.PostForm.Get("title"),
 		r.PostForm.Get("content"),
 		r.PostForm.Get("color"),
@@ -103,5 +85,38 @@ func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error 
 
 	slog.Debug("note created successfully", "note_id", newNote.ID.Int)
 	http.Redirect(w, r, fmt.Sprintf("/notes/detail?id=%d", newNote.ID.Int), http.StatusFound)
+	return nil
+}
+
+func (nh noteHandler) NotesDelete(w http.ResponseWriter, r *http.Request) error {
+	if r.Method != http.MethodDelete {
+		r.Header.Set("Allow", http.MethodDelete)
+		return errs.NewHTTPError(nil, http.StatusMethodNotAllowed, "Method not allowed")
+	}
+
+	rawNoteID := r.URL.Query().Get("id")
+	if rawNoteID == "" {
+		return errs.NewHTTPError(nil, http.StatusBadRequest, "id is required")
+	}
+
+	numID, err := strconv.Atoi(rawNoteID)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusBadRequest, "invalid note id")
+	}
+
+	if err := nh.noteRepo.Delete(r.Context(), numID); err != nil {
+		slog.Error("Failed to delete note", "err", err, "note_id", numID)
+	}
+
+	return nil
+}
+
+func (nh noteHandler) NotesUpdate(w http.ResponseWriter, r *http.Request) error {
+	if r.Method == http.MethodGet {
+		return render(
+			w,
+			newRenderOpts().WithPage("note-edit.html"),
+		)
+	}
 	return nil
 }

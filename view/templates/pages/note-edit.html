@@ -1,13 +1,13 @@
-{{ define "title" }} Nova Nota {{ end }}
+{{ define "title" }}Atualizar anotação{{end}}
+
 {{ define "content" }}
- <h1>Nova anotação</h1>
-<form action="/notes/create" method="post">    
- 
+<h1>Atualizar anotação</h1>
+<form action="/notes" method="post">
+    <input type="hidden" name="id" value="{{.ID}}">
     <label for="title">Título</label>
     <input required type="text" name="title" id="title" value="{{.Title}}">
 
     <label for="content">Conteúdo</label>
-
     <textarea name="content" id="content" cols="30" rows="10">
         {{- .Content -}}
     </textarea>

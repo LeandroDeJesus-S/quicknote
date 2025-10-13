@@ -1,5 +1,33 @@
-{{ define "title" }} {{ .noteName }} {{ end }}
-{{ define "content" }}
-    <h1>{{ .noteName }}</h1>
-    <p>{{ .noteContent }}</p>
+{{ define "title"}}Visualização da nota {{ .ID }}{{ end }}
+
+{{define "content" }}
+<div class="note-view">
+    <h3>{{.noteName}}</h3>
+    <p>{{.noteContent}}</p>
+    <div class="buttons">
+        <button data-noteid="{{.ID}}" class="info" type="button">Editar</button>
+        <button data-noteid="{{.ID}}" class="danger" type="button">Deletar</button>
+    </div>
+</div>
 {{ end }}
+
+{{ define "script"}}
+<script>
+    $("button.danger").click(function(event) {
+        event.stopPropagation()
+        if (window.confirm("Tem certeza que deseja deletar essa anotação?")) {
+            $.ajax({
+                url: "/notes/delete" + $(this).data("noteid"),
+                type: "DELETE",
+                success: function() {
+                    window.location.href = "/notes"
+                }
+            })
+        }
+    })
+
+    // $("button.info").click(function(event) {
+    //     window.location.href = "/note/" + $(this).data("noteid") + "/edit"
+    // })
+</script>
+{{end}}

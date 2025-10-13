@@ -17,7 +17,7 @@ func (h ErrorHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	switch v := err.(type) {
 	case errs.HTTPError:
-		slog.Debug(v.Error(), "sourceErr", v.Unwrap().Error())
+		slog.Debug(v.Error(), "sourceErr", v.Unwrap())
 		http.Error(w, v.Error(), v.Code())
 	default:
 		http.Error(w, err.Error(), http.StatusInternalServerError)

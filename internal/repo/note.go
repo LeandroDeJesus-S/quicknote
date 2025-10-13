@@ -13,11 +13,11 @@ import (
 )
 
 type Noter interface {
-	List() ([]models.Note, error)
-	ReadOne(id int) (*models.Note, error)
-	Create(title, content, color string) (*models.Note, error)
-	Update(id int, data map[string]any) (*models.Note, error)
-	Delete(id int) error
+	List(ctx context.Context) ([]models.Note, error)
+	ReadOne(ctx context.Context, tid int) (*models.Note, error)
+	Create(ctx context.Context, title, content, color string) (*models.Note, error)
+	Update(ctx context.Context, id int, data map[string]any) (*models.Note, error)
+	Delete(ctx context.Context, id int) error
 }
 
 type noteRepo struct {
@@ -27,7 +27,7 @@ type noteRepo struct {
 func NewNoteRepo(db *pgxpool.Pool) Noter {
 	return &noteRepo{db: db}
 }
-func (nr noteRepo) List() ([]models.Note, error) {
+func (nr noteRepo) List(ctx context.Context) ([]models.Note, error) {
 	rows, err := nr.db.Query(
 		context.Background(),
 		"SELECT id, title, content, color, created_at, updated_at FROM notes",
@@ -49,7 +49,7 @@ func (nr noteRepo) List() ([]models.Note, error) {
 	return notes, nil
 }
 
-func (nr noteRepo) ReadOne(id int) (*models.Note, error) {
+func (nr noteRepo) ReadOne(ctx context.Context, id int) (*models.Note, error) {
 	row := nr.db.QueryRow(
 		context.Background(),
 		"SELECT id, title, content, color, created_at, updated_at FROM notes WHERE id = $1",
@@ -63,7 +63,7 @@ func (nr noteRepo) ReadOne(id int) (*models.Note, error) {
 	return &note, nil
 }
 
-func (nr noteRepo) Create(title, content, color string) (*models.Note, error) {
+func (nr noteRepo) Create(ctx context.Context, title, content, color string) (*models.Note, error) {
 	var note models.Note
 
 	note.Title = pgtype.Text{String: title, Valid: title != ""}
@@ -85,7 +85,7 @@ func (nr noteRepo) Create(title, content, color string) (*models.Note, error) {
 	return &note, nil
 }
 
-func (nr noteRepo) Update(id int, data map[string]any) (*models.Note, error) {
+func (nr noteRepo) Update(ctx context.Context, id int, data map[string]any) (*models.Note, error) {
 	if data == nil {
 		return nil, errs.NewRepoError(fmt.Errorf("no data to update"))
 	}
@@ -123,7 +123,7 @@ func (nr noteRepo) Update(id int, data map[string]any) (*models.Note, error) {
 	return &note, nil
 }
 
-func (nr noteRepo) Delete(id int) error {
+func (nr noteRepo) Delete(ctx context.Context, id int) error {
 	_, err := nr.db.Exec(
 		context.Background(),
 		"DELETE FROM notes WHERE id = $1",
