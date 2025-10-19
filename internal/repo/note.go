@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
@@ -97,18 +99,34 @@ func (nr noteRepo) Update(ctx context.Context, id int, data map[string]any) (*mo
 	args := make([]any, 0, len(data)+1)
 
 	i := 0
-	for field, value := range data {
-		query.WriteString(fmt.Sprintf("%d = $%d ", i, i+1))
-		args = append(args, field, value)
+	nmap := len(data)
 
-		i += 2
+	for field, value := range data {
+		matches, err := regexp.MatchString("^[A-Za-z_]+$", field)
+		if err != nil {
+			return nil, errs.NewRepoError(fmt.Errorf("regexp error: %w", err))
+		}
+		if !matches {
+			return nil, errs.NewRepoError(fmt.Errorf("invalid field name: %s", field))
+		}
+
+		if i == nmap-1 {
+			query.WriteString(fmt.Sprintf("%s=$%d ", field, i+1))
+			args = append(args, value)
+		} else {
+			query.WriteString(fmt.Sprintf("%s=$%d, ", field, i+1))
+			args = append(args, value)
+		}
+
+		i++
 	}
 
-	query.WriteString(fmt.Sprintf("WHERE id = $%d", i))
+	query.WriteString(fmt.Sprintf("WHERE id=$%d ", i+1))
 	args = append(args, id)
 
 	query.WriteString("RETURNING id, title, content, color, created_at, updated_at")
 
+	slog.Debug("updating note", "query", query.String(), "args", args)
 	row := nr.db.QueryRow(
 		context.Background(),
 		query.String(),

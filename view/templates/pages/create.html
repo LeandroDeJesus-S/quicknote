@@ -1,7 +1,7 @@
 {{ define "title" }} Nova Nota {{ end }}
 {{ define "content" }}
  <h1>Nova anotação</h1>
-<form action="/notes/create" method="post">    
+<form action="/notes" method="post">    
  
     <label for="title">Título</label>
     <input required type="text" name="title" id="title" value="{{.Title}}">

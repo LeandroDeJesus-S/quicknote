@@ -31,16 +31,8 @@ func (nh noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error {
-	if r.Method != http.MethodGet {
-		w.Header().Set("Allow", http.MethodGet)
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return errs.NewHTTPError(nil, http.StatusMethodNotAllowed, "method not allowed")
-	}
-
-	noteId := r.URL.Query().Get("id")
-	if noteId == "" {
-		return errs.NewHTTPError(nil, http.StatusBadRequest, "id is required")
-	}
+	slog.Debug("fetching note details")
+	noteId := r.PathValue("id")
 
 	id, err := strconv.Atoi(noteId)
 	if err != nil {
@@ -52,52 +44,24 @@ func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "error reading note")
 	}
 
+	slog.Debug("rendering note detail", "note_id", id)
 	return render(
 		w,
 		newRenderOpts().WithPage("detail.html").WithData(
-			map[string]string{"noteName": note.Title.String, "noteContent": note.Content.String},
+			map[string]any{"ID": id, "noteName": note.Title.String, "noteContent": note.Content.String},
 		),
 	)
 }
 
 func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
-	if r.Method == http.MethodGet {
-		return render(
-			w,
-			newRenderOpts().WithPage("create.html").WithData(newNoteRequestDTO()),
-		)
-	}
-
-	if err := r.ParseForm(); err != nil {
-		return errs.NewHTTPError(err, http.StatusBadRequest, "error parsing form")
-	}
-	defer r.Body.Close()
-
-	newNote, err := nh.noteRepo.Create(
-		r.Context(),
-		r.PostForm.Get("title"),
-		r.PostForm.Get("content"),
-		r.PostForm.Get("color"),
+	return render(
+		w,
+		newRenderOpts().WithPage("create.html").WithData(newNoteRequestDTO()),
 	)
-	if err != nil {
-		return errs.NewHTTPError(err, http.StatusInternalServerError, "error creating note")
-	}
-
-	slog.Debug("note created successfully", "note_id", newNote.ID.Int)
-	http.Redirect(w, r, fmt.Sprintf("/notes/detail?id=%d", newNote.ID.Int), http.StatusFound)
-	return nil
 }
 
 func (nh noteHandler) NotesDelete(w http.ResponseWriter, r *http.Request) error {
-	if r.Method != http.MethodDelete {
-		r.Header.Set("Allow", http.MethodDelete)
-		return errs.NewHTTPError(nil, http.StatusMethodNotAllowed, "Method not allowed")
-	}
-
-	rawNoteID := r.URL.Query().Get("id")
-	if rawNoteID == "" {
-		return errs.NewHTTPError(nil, http.StatusBadRequest, "id is required")
-	}
+	rawNoteID := r.PathValue("id")
 
 	numID, err := strconv.Atoi(rawNoteID)
 	if err != nil {
@@ -112,11 +76,68 @@ func (nh noteHandler) NotesDelete(w http.ResponseWriter, r *http.Request) error 
 }
 
 func (nh noteHandler) NotesUpdate(w http.ResponseWriter, r *http.Request) error {
-	if r.Method == http.MethodGet {
-		return render(
-			w,
-			newRenderOpts().WithPage("note-edit.html"),
-		)
+	noteId := r.PathValue("id")
+
+	id, err := strconv.Atoi(noteId)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
 	}
+
+	note, err := nh.noteRepo.ReadOne(r.Context(), id)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "error reading note")
+	}
+	noteR := newNoteRequestDTO()
+	noteR.ID = id
+	noteR.Title = note.Title.String
+	noteR.Content = note.Content.String
+	noteR.Color = note.Color.String
+
+	return render(
+		w,
+		newRenderOpts().WithPage("note-edit.html").WithData(
+			noteR,
+		),
+	)
+}
+
+func (nh noteHandler) Save(w http.ResponseWriter, r *http.Request) error {
+	if err := r.ParseForm(); err != nil {
+		return errs.NewHTTPError(err, http.StatusBadRequest, "error parsing form")
+	}
+	defer r.Body.Close()
+
+	id := r.PostForm.Get("id")
+	if id != "" {
+		idInt, err := strconv.Atoi(id)
+		if err != nil {
+			return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
+		}
+
+		note, err := nh.noteRepo.Update(r.Context(), idInt, map[string]any{
+			"title":   r.PostForm.Get("title"),
+			"content": r.PostForm.Get("content"),
+			"color":   r.PostForm.Get("color"),
+		})
+		if err != nil {
+			return errs.NewHTTPError(err, http.StatusInternalServerError, "error updating note")
+		}
+
+		http.Redirect(w, r, fmt.Sprintf("/notes/%d", note.ID.Int), http.StatusFound)
+		return nil
+	}
+
+	newNote, err := nh.noteRepo.Create(
+		r.Context(),
+		r.PostForm.Get("title"),
+		r.PostForm.Get("content"),
+		r.PostForm.Get("color"),
+	)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "error creating note")
+	}
+
+	slog.Debug("note created successfully", "note_id", newNote.ID.Int)
+	http.Redirect(w, r, fmt.Sprintf("/notes/%d", newNote.ID.Int), http.StatusFound)
 	return nil
 }

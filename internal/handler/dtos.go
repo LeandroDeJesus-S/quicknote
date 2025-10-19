@@ -31,7 +31,7 @@ func newNoteDTOList(notes []models.Note) []NoteDTO {
 }
 
 type NoteRequestDTO struct {
-	Id      int
+	ID      int
 	Title   string
 	Content string
 	Color   string

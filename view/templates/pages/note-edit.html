@@ -2,7 +2,7 @@
 
 {{ define "content" }}
 <h1>Atualizar anotação</h1>
-<form action="/notes" method="post">
+<form id="edit-form" action="/notes" method="post">
     <input type="hidden" name="id" value="{{.ID}}">
     <label for="title">Título</label>
     <input required type="text" name="title" id="title" value="{{.Title}}">
@@ -37,7 +37,7 @@
         })
 
         $("button.neutral").click(function(){
-            window.location.href = "/notes"
+            window.location.href = "/notes/{{.ID}}"
         })
     </script>
 {{end}}
