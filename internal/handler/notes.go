@@ -8,6 +8,8 @@ import (
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
+	"github.com/LeandroDeJesus-S/quicknote/internal/support"
+	"github.com/LeandroDeJesus-S/quicknote/internal/validation"
 )
 
 type noteHandler struct {
@@ -56,7 +58,9 @@ func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
 	return render(
 		w,
-		newRenderOpts().WithPage("create.html").WithData(newNoteRequestDTO()),
+		newRenderOpts().WithPage("create.html").WithData(
+			map[string]any{"note": newNoteRequestDTO()},
+		),
 	)
 }
 
@@ -96,7 +100,7 @@ func (nh noteHandler) NotesUpdate(w http.ResponseWriter, r *http.Request) error 
 	return render(
 		w,
 		newRenderOpts().WithPage("note-edit.html").WithData(
-			noteR,
+			map[string]any{"note": noteR},
 		),
 	)
 }
@@ -107,14 +111,38 @@ func (nh noteHandler) Save(w http.ResponseWriter, r *http.Request) error {
 	}
 	defer r.Body.Close()
 
-	id := r.PostForm.Get("id")
-	if id != "" {
-		idInt, err := strconv.Atoi(id)
-		if err != nil {
-			return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
-		}
+	rawID := r.PostForm.Get("id")
+	id, err := strconv.Atoi(rawID)
+	if err != nil && rawID != "" {
+		return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
+	}
 
-		note, err := nh.noteRepo.Update(r.Context(), idInt, map[string]any{
+	noteR := newNoteRequestDTO()
+	noteR.ID = id
+	noteR.Title = r.PostForm.Get("title")
+	noteR.Content = r.PostForm.Get("content")
+	noteR.Color = r.PostForm.Get("color")
+
+	validator := validation.NewFormValidator()
+	validator.AddValidator("title", validation.ValidateStringNotEmpty)
+	validator.AddValidator("content", validation.ValidateStringNotEmpty)
+	validator.AddValidator("color", validation.ValidateStringNotEmpty)
+
+	validator.ValidateForm(r.PostForm)
+	if !validator.Ok() {
+		page := support.TernaryIf(id > 0, "note-edit.html", "create.html")
+		render(
+			w,
+			newRenderOpts().WithPage(page).WithData(map[string]any{
+				"FieldErrors": validator.FieldErrors(),
+				"note":        noteR,
+			}),
+		)
+		return nil
+	}
+
+	if id > 0 {
+		note, err := nh.noteRepo.Update(r.Context(), id, map[string]any{
 			"title":   r.PostForm.Get("title"),
 			"content": r.PostForm.Get("content"),
 			"color":   r.PostForm.Get("color"),

@@ -4,22 +4,31 @@
 <form action="/notes" method="post">    
  
     <label for="title">Título</label>
-    <input required type="text" name="title" id="title" value="{{.Title}}">
+    <input required type="text" name="title" id="title" value="{{.note.Title}}"
+    <div class="error">
+        {{.FieldErrors.title}}
+    </div>>
 
     <label for="content">Conteúdo</label>
 
     <textarea name="content" id="content" cols="30" rows="10">
-        {{- .Content -}}
+        {{- .note.Content -}}
     </textarea>
+    <div class="error">
+        {{.FieldErrors.content}}
+    </div>>
 
     <label for="color">Cor do Cartão</label>
-    <input id="color" type="hidden" name="color" value="{{.Color}}">
+    <input id="color" type="hidden" name="color" value="{{.note.Color}}">
     <div class="color-picker">
-        {{ $color := .Color }}
-        {{range .Colors}}
+        {{ $color := .note.Color }}
+        {{range .note.Colors}}
             <div data-color="{{.}}" class="color {{.}} {{if eq . $color}}active{{end}}"></div>
         {{end}}
     </div>
+    <div class="error">
+        {{.FieldErrors.color}}
+    </div>>
 
     <div class="buttons">
         <button class="success" type="submit">Salvar</button>

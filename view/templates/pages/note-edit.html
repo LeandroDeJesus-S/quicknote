@@ -3,22 +3,30 @@
 {{ define "content" }}
 <h1>Atualizar anotação</h1>
 <form id="edit-form" action="/notes" method="post">
-    <input type="hidden" name="id" value="{{.ID}}">
+    <input type="hidden" name="id" value="{{.note.ID}}">
     <label for="title">Título</label>
-    <input required type="text" name="title" id="title" value="{{.Title}}">
-
+    <input required type="text" name="title" id="title" value="{{.note.Title}}">
+    <div class="error">
+        {{.FieldErrors.title}}
+    </div>
     <label for="content">Conteúdo</label>
     <textarea name="content" id="content" cols="30" rows="10">
-        {{- .Content -}}
+        {{- .note.Content -}}
     </textarea>
+    <div class="error">
+        {{.FieldErrors.content}}
+    </div>
 
     <label for="color">Cor do Cartão</label>
-    <input id="color" type="hidden" name="color" value="{{.Color}}">
+    <input id="color" type="hidden" name="color" value="{{.note.Color}}">
     <div class="color-picker">
-        {{ $color := .Color }}
-        {{range .Colors}}
+        {{ $color := .note.Color }}
+        {{range .note.Colors}}
             <div data-color="{{.}}" class="color {{.}} {{if eq . $color}}active{{end}}"></div>
         {{end}}
+    </div>
+    <div class="error">
+        {{.FieldErrors.color}}
     </div>
 
     <div class="buttons">
@@ -37,7 +45,7 @@
         })
 
         $("button.neutral").click(function(){
-            window.location.href = "/notes/{{.ID}}"
+            window.location.href = "/notes/{{.note.ID}}"
         })
     </script>
 {{end}}

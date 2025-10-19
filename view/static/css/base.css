@@ -290,7 +290,7 @@
         margin-block: 1rem;
     }
 
-    p.error {
+    .error {
         color: var(--danger);       
         margin-block: 1rem;
     }
