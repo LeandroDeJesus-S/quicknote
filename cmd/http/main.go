@@ -10,6 +10,7 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/config/db"
 	"github.com/LeandroDeJesus-S/quicknote/internal/handler"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
+	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
 )
 
 func main() {
@@ -24,10 +25,14 @@ func main() {
 	slog.Info("configurations loaded successfully", "server_host", conf.ServerHost, "server_port", conf.ServerPort)
 
 	noteRepo := repo.NewNoteRepo(pool)
+	userRepo := repo.NewUserRepo(pool)
+
+	pwHasher := authutil.NewBcryptHasher()
 
 	mux := http.NewServeMux()
 
 	noteHandler := handler.NewNoteHandler(noteRepo)
+	userHandler := handler.NewUserHandler(userRepo, pwHasher)
 
 	staticHandle := http.FileServer(http.Dir("view/static/"))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandle))
@@ -39,6 +44,13 @@ func main() {
 	mux.Handle("DELETE /notes/{id}", handler.ErrorHandler(noteHandler.NotesDelete))
 	mux.Handle("POST /notes", handler.ErrorHandler(noteHandler.Save))
 	mux.Handle("GET /notes/{id}/edit", handler.ErrorHandler(noteHandler.NotesUpdate))
+
+	mux.Handle("GET /users/signup", handler.ErrorHandler(userHandler.SignUp))
+	mux.Handle("POST /users/signup", handler.ErrorHandler(userHandler.SignUpPost))
+	mux.Handle("GET /users/confirm/{token}", handler.ErrorHandler(userHandler.Confirm))
+
+	// mux.Handle("GET /users/signin", handler.ErrorHandler(userHandler.SignIn))
+	// mux.Handle("GET /users/signout", handler.ErrorHandler(userHandler.SignOut)
 
 	lh := func(h http.Handler) http.Handler {
 		return http.HandlerFunc((func(w http.ResponseWriter, r *http.Request) {

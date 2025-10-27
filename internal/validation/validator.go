@@ -37,8 +37,10 @@ func (fv *formValidator) AddError(field, message string) {
 	fv.fieldErrors[field] = message
 }
 
-func (fv *formValidator) AddValidator(field string, validator ValidatorFunc) {
-	fv.validators[field] = validator
+func (fv *formValidator) AddValidator(fields []string, validator ValidatorFunc) {
+	for _, field := range fields {
+		fv.validators[field] = validator
+	}
 }
 
 func (fv *formValidator) Ok() bool {

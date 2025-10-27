@@ -7,14 +7,14 @@
     <label for="title">Título</label>
     <input required type="text" name="title" id="title" value="{{.note.Title}}">
     <div class="error">
-        {{.FieldErrors.title}}
+        {{with .FieldErrors}}{{.title}}{{end}}
     </div>
     <label for="content">Conteúdo</label>
     <textarea name="content" id="content" cols="30" rows="10">
         {{- .note.Content -}}
     </textarea>
     <div class="error">
-        {{.FieldErrors.content}}
+        {{with .FieldErrors}}{{.content}}{{end}}
     </div>
 
     <label for="color">Cor do Cartão</label>
@@ -26,7 +26,7 @@
         {{end}}
     </div>
     <div class="error">
-        {{.FieldErrors.color}}
+        {{with .FieldErrors}}{{.color}}{{end}}
     </div>
 
     <div class="buttons">

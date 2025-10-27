@@ -1,3 +1,4 @@
+// Package handler provides HTTP handlers.
 package handler
 
 import (
@@ -12,14 +13,17 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/internal/validation"
 )
 
+// noteHandler handles HTTP requests for notes.
 type noteHandler struct {
 	noteRepo repo.Noter
 }
 
+// NewNoteHandler creates a new noteHandler.
 func NewNoteHandler(noteRepo repo.Noter) *noteHandler {
 	return &noteHandler{noteRepo: noteRepo}
 }
 
+// ListNotes handles the request to list all notes.
 func (nh noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
 	notes, err := nh.noteRepo.List(r.Context())
 	if err != nil {
@@ -32,16 +36,17 @@ func (nh noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
 	)
 }
 
-func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error {
+// NotesDetail handles the request to show the details of a note.
+func (nh noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error {
 	slog.Debug("fetching note details")
-	noteId := r.PathValue("id")
+	noteID := r.PathValue("id")
 
-	id, err := strconv.Atoi(noteId)
+	id, err := strconv.Atoi(noteID)
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
 	}
 
-	note, err := nr.noteRepo.ReadOne(r.Context(), id)
+	note, err := nh.noteRepo.ReadOne(r.Context(), id)
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "error reading note")
 	}
@@ -55,6 +60,7 @@ func (nr noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 	)
 }
 
+// NotesCreate handles the request to show the create note page.
 func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
 	return render(
 		w,
@@ -64,6 +70,7 @@ func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error 
 	)
 }
 
+// NotesDelete handles the request to delete a note.
 func (nh noteHandler) NotesDelete(w http.ResponseWriter, r *http.Request) error {
 	rawNoteID := r.PathValue("id")
 
@@ -79,10 +86,11 @@ func (nh noteHandler) NotesDelete(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
+// NotesUpdate handles the request to show the update note page.
 func (nh noteHandler) NotesUpdate(w http.ResponseWriter, r *http.Request) error {
-	noteId := r.PathValue("id")
+	noteID := r.PathValue("id")
 
-	id, err := strconv.Atoi(noteId)
+	id, err := strconv.Atoi(noteID)
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusBadRequest, "id is invalid")
 	}
@@ -105,6 +113,7 @@ func (nh noteHandler) NotesUpdate(w http.ResponseWriter, r *http.Request) error 
 	)
 }
 
+// Save handles the request to save a note.
 func (nh noteHandler) Save(w http.ResponseWriter, r *http.Request) error {
 	if err := r.ParseForm(); err != nil {
 		return errs.NewHTTPError(err, http.StatusBadRequest, "error parsing form")
@@ -124,9 +133,7 @@ func (nh noteHandler) Save(w http.ResponseWriter, r *http.Request) error {
 	noteR.Color = r.PostForm.Get("color")
 
 	validator := validation.NewFormValidator()
-	validator.AddValidator("title", validation.ValidateStringNotEmpty)
-	validator.AddValidator("content", validation.ValidateStringNotEmpty)
-	validator.AddValidator("color", validation.ValidateStringNotEmpty)
+	validator.AddValidator([]string{"title", "content", "color"}, validation.ValidateStringNotEmpty)
 
 	validator.ValidateForm(r.PostForm)
 	if !validator.Ok() {

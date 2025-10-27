@@ -4,10 +4,10 @@
 <form action="/notes" method="post">    
  
     <label for="title">Título</label>
-    <input required type="text" name="title" id="title" value="{{.note.Title}}"
+    <input required type="text" name="title" id="title" value="{{.note.Title}}">
     <div class="error">
-        {{.FieldErrors.title}}
-    </div>>
+        {{with .FieldErrors}}{{.title}}{{end}}
+    </div>
 
     <label for="content">Conteúdo</label>
 
@@ -15,8 +15,8 @@
         {{- .note.Content -}}
     </textarea>
     <div class="error">
-        {{.FieldErrors.content}}
-    </div>>
+        {{with .FieldErrors}}{{.content}}{{end}}
+    </div>
 
     <label for="color">Cor do Cartão</label>
     <input id="color" type="hidden" name="color" value="{{.note.Color}}">
@@ -27,8 +27,8 @@
         {{end}}
     </div>
     <div class="error">
-        {{.FieldErrors.color}}
-    </div>>
+        {{with .FieldErrors}}{{.color}}{{end}}
+    </div>
 
     <div class="buttons">
         <button class="success" type="submit">Salvar</button>
@@ -50,3 +50,9 @@
         })
     </script>
 {{end}}
+
+
+
+
+
+

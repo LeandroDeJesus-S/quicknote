@@ -1,3 +1,4 @@
+// Package handler provides HTTP handlers.
 package handler
 
 import (
@@ -9,12 +10,14 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
 )
 
+// renderOpts represents the options for rendering a template.
 type renderOpts struct {
 	status int
 	page   string
 	data   any
 }
 
+// newRenderOpts creates a new renderOpts with default values.
 func newRenderOpts() *renderOpts {
 	std := &renderOpts{
 		status: http.StatusOK,
@@ -23,19 +26,26 @@ func newRenderOpts() *renderOpts {
 	}
 	return std
 }
+
+// WithStatus sets the HTTP status code for the response.
 func (ro *renderOpts) WithStatus(s int) *renderOpts {
 	ro.status = s
 	return ro
 }
+
+// WithPage sets the page to be rendered.
 func (ro *renderOpts) WithPage(p string) *renderOpts {
 	ro.page = fmt.Sprintf("view/templates/pages/%s", p)
 	return ro
 }
+
+// WithData sets the data to be passed to the template.
 func (ro *renderOpts) WithData(d any) *renderOpts {
 	ro.data = d
 	return ro
 }
 
+// render renders a template to the given http.ResponseWriter.
 func render(w http.ResponseWriter, opts *renderOpts) error {
 	if opts == nil {
 		opts = newRenderOpts()
