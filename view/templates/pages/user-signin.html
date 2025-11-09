@@ -1,8 +1,8 @@
-{{define "title"}}Sign Up{{end}}
+{{define "title"}}Sign In{{end}}
 
 {{define "content"}}
-<form class="user-form" action="/users/signup" method="post">
-    <h1>Cadastrar-se</h1>
+<form class="user-form" action="/users/signin" method="post">
+    <h1>Entrar</h1>
     <input type="hidden" name="captchaID" value="{{.CaptchaID}}">
     <label for="email">E-mail</label>
     {{with .FieldErrors}}
@@ -19,9 +19,9 @@
 
     <input type="checkbox"><span>Mostrar senha</span>
 
-    <button class="success" type="submit">Cadastrar</button>
+    <button class="success" type="submit">Entrar</button>
 
-    <p>Já é cadastrado? <a href="/users/signin">Faça o Login</a></p>
+    <p>Não possui uma conta? <a href="/users/signup">Faça o Cadastro</a></p>
 </form>{{end}}
 
 {{define "script"}}

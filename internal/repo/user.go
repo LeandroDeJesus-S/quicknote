@@ -16,12 +16,14 @@ import (
 var (
 	ErrDuplicatedEmail           = errs.NewRepoError(errors.New("email not available"))
 	ErrConfirmationTokenNotFound = errs.NewRepoError(errors.New("confirmation token not found"))
+	ErrUserNotFound              = errs.NewRepoError(errors.New("user not found"))
 )
 
 type UserRepository interface {
 	Create(ctx context.Context, email, password string) (*models.User, error)
 	CreateUserToken(ctx context.Context, userID int64, token string) (*models.UserConfirmationToken, error)
 	ConfirmUserWithToken(ctx context.Context, token string) error
+	FindByEmail(ctx context.Context, email string) (*models.User, error)
 }
 
 type UserRepo struct {
@@ -69,12 +71,24 @@ func (r *UserRepo) ConfirmUserWithToken(ctx context.Context, token string) error
 		return errs.NewRepoError(err)
 	}
 
-	// FIXME: boolean fields are not being applied to false
-	if _, err := r.db.Exec(ctx, "update users set active = true, update_at = now() where id = $1", userID); err != nil {
+	if _, err := r.db.Exec(ctx, "UPDATE users SET active = TRUE, updated_at = now() WHERE id = $1", userID); err != nil {
 		return errs.NewRepoError(err)
 	}
-	if _, err := r.db.Exec(ctx, "update user_tokens set confirmed = true, update_at = now() where id = $1", tokenID); err != nil {
+	if _, err := r.db.Exec(ctx, "UPDATE user_tokens SET confirmed = TRUE, updated_at = now() WHERE id = $1", tokenID); err != nil {
 		return errs.NewRepoError(err)
 	}
 	return nil
+}
+
+func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	var u models.User
+	u.Email = pgtype.Text{String: email, Valid: true}
+	query := "SELECT id, password, active, created_at, updated_at FROM users WHERE email = $1"
+	if err := r.db.QueryRow(ctx, query, u.Email).Scan(&u.ID, &u.Password, &u.Active, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrUserNotFound
+		}
+		return nil, errs.NewRepoError(err)
+	}
+	return &u, nil
 }

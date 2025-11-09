@@ -24,6 +24,78 @@ func NewUserHandler(repo repo.UserRepository, pwHasher authutil.PasswordHasher) 
 	return uh
 }
 
+// SignIn handles the request to show the sign-in page.
+func (h *userHandler) SignIn(w http.ResponseWriter, r *http.Request) error {
+	return render(w, newRenderOpts().WithPage("user-signin.html"))
+}
+
+// SignInPost handles the request to signin a user.
+func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
+	if err := r.ParseForm(); err != nil {
+		return errs.NewHTTPError(err, http.StatusBadRequest, "failed to parse form")
+	}
+
+	validator := validation.NewFormValidator()
+	validator.AddValidator(
+		[]string{"email", "password"},
+		validation.ValidateStringNotEmpty,
+	)
+	validator.AddValidator([]string{"email"}, validation.ValidateEmailPattern)
+
+	validator.ValidateForm(r.PostForm)
+	if !validator.Ok() {
+		return render(
+			w,
+			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+				"FieldErrors": validator.FieldErrors(),
+				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
+			}),
+		)
+	}
+
+	usr, err := h.repo.FindByEmail(r.Context(), r.PostForm.Get("email"))
+	if err != nil {
+		if !errors.Is(err, repo.ErrUserNotFound) {
+			return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to verify credentials")
+		}
+
+		validator.AddError("email", "invalid credentials")
+		return render(
+			w,
+			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+				"FieldErrors": validator.FieldErrors(),
+				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
+			}),
+		)
+	}
+
+	if !usr.Active.Bool {
+		validator.AddError("email", "your account is not active")
+		return render(
+			w,
+			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+				"FieldErrors": validator.FieldErrors(),
+				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
+			}),
+		)
+	}
+
+	if ok, err := h.pwHasher.CheckPassword(r.PostForm.Get("password"), usr.Password.String); !ok {
+		validator.AddError("email", "invalid credentials")
+		slog.Error("failed to verify credentials", "error", err)
+		return render(
+			w,
+			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+				"FieldErrors": validator.FieldErrors(),
+				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
+			}),
+		)
+	}
+
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+	return nil
+}
+
 // SignUp handles the request to show the sign-up page.
 func (h *userHandler) SignUp(w http.ResponseWriter, r *http.Request) error {
 	return render(w, newRenderOpts().WithPage("user-signup.html"))
@@ -91,14 +163,15 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 func (h *userHandler) Confirm(w http.ResponseWriter, r *http.Request) error {
 	token := r.PathValue("token")
 	if err := h.repo.ConfirmUserWithToken(r.Context(), token); err != nil {
-		return render(
-			w,
-			newRenderOpts().WithPage(
-				"user-confirm.html",
-			).WithData(
-				"your regestration was successfuly cofirmed",
-			),
-		)
+		slog.Error("failed to confirm user token", "error", err)
+		return errs.NewHTTPError(err, http.StatusBadRequest, "failed to confirm user")
 	}
-	return nil
+	return render(
+		w,
+		newRenderOpts().WithPage(
+			"user-confirm.html",
+		).WithData(
+			"your regestration was successfuly cofirmed",
+		),
+	)
 }

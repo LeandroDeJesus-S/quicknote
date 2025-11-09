@@ -47,6 +47,10 @@ func main() {
 
 	mux.Handle("GET /users/signup", handler.ErrorHandler(userHandler.SignUp))
 	mux.Handle("POST /users/signup", handler.ErrorHandler(userHandler.SignUpPost))
+
+	mux.Handle("GET /users/signin", handler.ErrorHandler(userHandler.SignIn))
+	mux.Handle("POST /users/signin", handler.ErrorHandler(userHandler.SignInPost))
+
 	mux.Handle("GET /users/confirm/{token}", handler.ErrorHandler(userHandler.Confirm))
 
 	// mux.Handle("GET /users/signin", handler.ErrorHandler(userHandler.SignIn))
