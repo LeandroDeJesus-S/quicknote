@@ -26,7 +26,7 @@ func NewUserHandler(repo repo.UserRepository, pwHasher authutil.PasswordHasher) 
 
 // SignIn handles the request to show the sign-in page.
 func (h *userHandler) SignIn(w http.ResponseWriter, r *http.Request) error {
-	return render(w, newRenderOpts().WithPage("user-signin.html"))
+	return render(w, r, newRenderOpts().WithPage("user-signin.html"))
 }
 
 // SignInPost handles the request to signin a user.
@@ -46,6 +46,7 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 	if !validator.Ok() {
 		return render(
 			w,
+			r,
 			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
@@ -62,6 +63,7 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 		validator.AddError("email", "invalid credentials")
 		return render(
 			w,
+			r,
 			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
@@ -73,6 +75,7 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 		validator.AddError("email", "your account is not active")
 		return render(
 			w,
+			r,
 			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
@@ -85,6 +88,7 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 		slog.Error("failed to verify credentials", "error", err)
 		return render(
 			w,
+			r,
 			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
@@ -98,7 +102,7 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 
 // SignUp handles the request to show the sign-up page.
 func (h *userHandler) SignUp(w http.ResponseWriter, r *http.Request) error {
-	return render(w, newRenderOpts().WithPage("user-signup.html"))
+	return render(w, r, newRenderOpts().WithPage("user-signup.html"))
 }
 
 // SignUpPost handles the request to create a new user.
@@ -119,6 +123,7 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 	if !validator.Ok() {
 		return render(
 			w,
+			r,
 			newRenderOpts().WithPage("user-signup.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
@@ -137,6 +142,7 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 		validator.AddError("email", "email not available")
 		return render(
 			w,
+			r,
 			newRenderOpts().WithPage("user-signup.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
@@ -156,6 +162,7 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 	slog.Debug("user created", "id", usr.ID, "email", usr.Email, "created_at", usr.CreatedAt)
 	return render(
 		w,
+		r,
 		newRenderOpts().WithPage("user-signup-success.html").WithData(map[string]any{"user_token": token.Token.String}),
 	)
 }
@@ -168,10 +175,16 @@ func (h *userHandler) Confirm(w http.ResponseWriter, r *http.Request) error {
 	}
 	return render(
 		w,
+		r,
 		newRenderOpts().WithPage(
 			"user-confirm.html",
 		).WithData(
 			"your regestration was successfuly cofirmed",
 		),
 	)
+}
+
+func (h *userHandler) SignOut(w http.ResponseWriter, r *http.Request) error {
+	// TODO: implement signout
+	return nil
 }

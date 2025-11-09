@@ -32,6 +32,7 @@ func (nh noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
 
 	return render(
 		w,
+		r,
 		newRenderOpts().WithPage("list.html").WithData(newNoteDTOList(notes)),
 	)
 }
@@ -54,6 +55,7 @@ func (nh noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 	slog.Debug("rendering note detail", "note_id", id)
 	return render(
 		w,
+		r,
 		newRenderOpts().WithPage("detail.html").WithData(
 			map[string]any{"ID": id, "noteName": note.Title.String, "noteContent": note.Content.String},
 		),
@@ -64,6 +66,7 @@ func (nh noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
 	return render(
 		w,
+		r,
 		newRenderOpts().WithPage("create.html").WithData(
 			map[string]any{"note": newNoteRequestDTO()},
 		),
@@ -107,6 +110,7 @@ func (nh noteHandler) NotesUpdate(w http.ResponseWriter, r *http.Request) error 
 
 	return render(
 		w,
+		r,
 		newRenderOpts().WithPage("note-edit.html").WithData(
 			map[string]any{"note": noteR},
 		),
@@ -140,6 +144,7 @@ func (nh noteHandler) Save(w http.ResponseWriter, r *http.Request) error {
 		page := support.TernaryIf(id > 0, "note-edit.html", "create.html")
 		render(
 			w,
+			r,
 			newRenderOpts().WithPage(page).WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"note":        noteR,

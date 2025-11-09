@@ -11,6 +11,8 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/internal/handler"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
+
+	"github.com/gorilla/csrf"
 )
 
 func main() {
@@ -52,9 +54,7 @@ func main() {
 	mux.Handle("POST /users/signin", handler.ErrorHandler(userHandler.SignInPost))
 
 	mux.Handle("GET /users/confirm/{token}", handler.ErrorHandler(userHandler.Confirm))
-
-	// mux.Handle("GET /users/signin", handler.ErrorHandler(userHandler.SignIn))
-	// mux.Handle("GET /users/signout", handler.ErrorHandler(userHandler.SignOut)
+	mux.Handle("GET /users/signout", handler.ErrorHandler(userHandler.SignOut))
 
 	lh := func(h http.Handler) http.Handler {
 		return http.HandlerFunc((func(w http.ResponseWriter, r *http.Request) {
@@ -62,5 +62,7 @@ func main() {
 			h.ServeHTTP(w, r)
 		}))
 	}
-	http.ListenAndServe(fmt.Sprintf("%s:%s", conf.ServerHost, conf.ServerPort), lh(mux))
+	csrfMiddleware := csrf.Protect([]byte("ae00c67f1d9538d26b9a43f775b956fb8b97e74026918c70d649d030c7c928c4"),
+		csrf.TrustedOrigins([]string{"localhost:8000", "127.0.0.1:8000"}))
+	http.ListenAndServe(fmt.Sprintf("%s:%s", conf.ServerHost, conf.ServerPort), lh(csrfMiddleware(mux)))
 }

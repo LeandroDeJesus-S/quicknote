@@ -8,13 +8,15 @@ import (
 	"net/http"
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
+	"github.com/gorilla/csrf"
 )
 
 // renderOpts represents the options for rendering a template.
 type renderOpts struct {
-	status int
-	page   string
-	data   any
+	status    int
+	page      string
+	data      any
+	csrfField template.HTML
 }
 
 // newRenderOpts creates a new renderOpts with default values.
@@ -45,12 +47,23 @@ func (ro *renderOpts) WithData(d any) *renderOpts {
 	return ro
 }
 
+func (ro *renderOpts) WithCSRFFieldFunc(t template.HTML) *renderOpts {
+	ro.csrfField = t
+	return ro
+}
+
 // render renders a template to the given http.ResponseWriter.
-func render(w http.ResponseWriter, opts *renderOpts) error {
+func render(w http.ResponseWriter, r *http.Request, opts *renderOpts) error {
 	if opts == nil {
 		opts = newRenderOpts()
 	}
-	tpl, err := template.ParseFiles(
+	if opts.csrfField == "" {
+		opts.csrfField = csrf.TemplateField(r)
+	}
+	tpl := template.New("").Funcs(template.FuncMap{
+		"csrfField": func() template.HTML { return opts.csrfField },
+	})
+	tpl, err := tpl.ParseFiles(
 		"view/templates/base.html",
 		opts.page,
 	)

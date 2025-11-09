@@ -11,7 +11,11 @@
             <p class="title">{{.Title}}</p>
             <div class="content">{{.Content}}</div>
             <div class="footer n">
-            <a data-noteid="{{.ID}}" >Deletar</a>
+            <form action="/notes/{{.ID}}" method="post">
+                {{csrfField}}
+                <input type="hidden" name="_method" value="DELETE">
+                <button class="danger" type="submit">Deletar</button>
+            </form>
             </div> 
         </div>
     {{end}}
@@ -24,19 +28,6 @@
         $(".note").click(function(){
             const id = $(this).attr('id')
             window.location.href = "/notes/" + id
-        })
-
-        $(".note a").click(function(event) {
-            event.stopPropagation()
-            if (window.confirm("Tem certeza que deseja deletar essa anotação?")) {
-                $.ajax({
-                    url: "/notes/" + $(this).data("noteid"),
-                    type: "DELETE",
-                    success: function() {
-                        window.location.href = "/notes"
-                    }
-                })
-            }
         })
     </script>
 {{end}}

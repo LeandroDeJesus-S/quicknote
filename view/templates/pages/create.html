@@ -2,6 +2,7 @@
 {{ define "content" }}
  <h1>Nova anotação</h1>
 <form action="/notes" method="post">    
+    {{csrfField}}
  
     <label for="title">Título</label>
     <input required type="text" name="title" id="title" value="{{.note.Title}}">
