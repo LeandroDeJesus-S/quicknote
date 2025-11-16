@@ -5,13 +5,15 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/LeandroDeJesus-S/quicknote/config"
 	"github.com/LeandroDeJesus-S/quicknote/config/db"
 	"github.com/LeandroDeJesus-S/quicknote/internal/handler"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
-
+	"github.com/alexedwards/scs/pgxstore"
+	"github.com/alexedwards/scs/v2"
 	"github.com/gorilla/csrf"
 )
 
@@ -30,39 +32,28 @@ func main() {
 	userRepo := repo.NewUserRepo(pool)
 
 	pwHasher := authutil.NewBcryptHasher()
+	sessionMng := scs.New()
+	sessionMng.Lifetime = 1 * time.Hour
+	sessionMng.Store = pgxstore.New(pool)
+	pgxstore.NewWithCleanupInterval(pool, 12*time.Hour)
 
-	mux := http.NewServeMux()
+	mux := handler.NewMux(noteRepo, userRepo, pwHasher, sessionMng)
+	muxH := mux.WithMiddleware(
+		sessionMng.LoadAndSave,
+		csrf.Protect(
+			[]byte(conf.SecretKey),
+			csrf.TrustedOrigins([]string{"localhost:8000", "127.0.0.1:8000"}),
+		),
+		func(h http.Handler) http.Handler {
+			return http.HandlerFunc((func(w http.ResponseWriter, r *http.Request) {
+				slog.Debug("[log]", "method", r.Method, "pattern", r.URL.Path)
+				h.ServeHTTP(w, r)
+			}))
+		},
+	)
 
-	noteHandler := handler.NewNoteHandler(noteRepo)
-	userHandler := handler.NewUserHandler(userRepo, pwHasher)
-
-	staticHandle := http.FileServer(http.Dir("view/static/"))
-	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandle))
-
-	mux.Handle("/", handler.ErrorHandler(handler.HomeHandler))
-	mux.Handle("GET /notes", handler.ErrorHandler(noteHandler.ListNotes))
-	mux.Handle("GET /notes/{id}", handler.ErrorHandler(noteHandler.NotesDetail))
-	mux.Handle("GET /notes/create", handler.ErrorHandler(noteHandler.NotesCreate))
-	mux.Handle("DELETE /notes/{id}", handler.ErrorHandler(noteHandler.NotesDelete))
-	mux.Handle("POST /notes", handler.ErrorHandler(noteHandler.Save))
-	mux.Handle("GET /notes/{id}/edit", handler.ErrorHandler(noteHandler.NotesUpdate))
-
-	mux.Handle("GET /users/signup", handler.ErrorHandler(userHandler.SignUp))
-	mux.Handle("POST /users/signup", handler.ErrorHandler(userHandler.SignUpPost))
-
-	mux.Handle("GET /users/signin", handler.ErrorHandler(userHandler.SignIn))
-	mux.Handle("POST /users/signin", handler.ErrorHandler(userHandler.SignInPost))
-
-	mux.Handle("GET /users/confirm/{token}", handler.ErrorHandler(userHandler.Confirm))
-	mux.Handle("GET /users/signout", handler.ErrorHandler(userHandler.SignOut))
-
-	lh := func(h http.Handler) http.Handler {
-		return http.HandlerFunc((func(w http.ResponseWriter, r *http.Request) {
-			slog.Debug("", "method", r.Method, "pattern", r.URL.Path)
-			h.ServeHTTP(w, r)
-		}))
-	}
-	csrfMiddleware := csrf.Protect([]byte("ae00c67f1d9538d26b9a43f775b956fb8b97e74026918c70d649d030c7c928c4"),
-		csrf.TrustedOrigins([]string{"localhost:8000", "127.0.0.1:8000"}))
-	http.ListenAndServe(fmt.Sprintf("%s:%s", conf.ServerHost, conf.ServerPort), lh(csrfMiddleware(mux)))
+	http.ListenAndServe(
+		fmt.Sprintf("%s:%s", conf.ServerHost, conf.ServerPort),
+		muxH,
+	)
 }

@@ -8,32 +8,40 @@ import (
 	"strconv"
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
+	"github.com/LeandroDeJesus-S/quicknote/internal/render"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support"
+	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
 	"github.com/LeandroDeJesus-S/quicknote/internal/validation"
+	"github.com/alexedwards/scs/v2"
 )
 
 // noteHandler handles HTTP requests for notes.
 type noteHandler struct {
 	noteRepo repo.Noter
+	render   render.TemplateRender
+	sesMng   *scs.SessionManager
 }
 
 // NewNoteHandler creates a new noteHandler.
-func NewNoteHandler(noteRepo repo.Noter) *noteHandler {
-	return &noteHandler{noteRepo: noteRepo}
+func NewNoteHandler(noteRepo repo.Noter, render render.TemplateRender, sesMng *scs.SessionManager) *noteHandler {
+	return &noteHandler{noteRepo: noteRepo, render: render, sesMng: sesMng}
 }
 
 // ListNotes handles the request to list all notes.
 func (nh noteHandler) ListNotes(w http.ResponseWriter, r *http.Request) error {
-	notes, err := nh.noteRepo.List(r.Context())
+	notes, err := nh.noteRepo.List(
+		r.Context(),
+		nh.sesMng.GetInt64(r.Context(), authutil.DefaultUserIDKey),
+	)
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "error listing notes")
 	}
 
-	return render(
+	return nh.render.Page(
 		w,
 		r,
-		newRenderOpts().WithPage("list.html").WithData(newNoteDTOList(notes)),
+		render.NewOpts().WithPage("list.html").WithData(newNoteDTOList(notes)),
 	)
 }
 
@@ -53,10 +61,10 @@ func (nh noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 	}
 
 	slog.Debug("rendering note detail", "note_id", id)
-	return render(
+	return nh.render.Page(
 		w,
 		r,
-		newRenderOpts().WithPage("detail.html").WithData(
+		render.NewOpts().WithPage("detail.html").WithData(
 			map[string]any{"ID": id, "noteName": note.Title.String, "noteContent": note.Content.String},
 		),
 	)
@@ -64,10 +72,10 @@ func (nh noteHandler) NotesDetail(w http.ResponseWriter, r *http.Request) error 
 
 // NotesCreate handles the request to show the create note page.
 func (nh noteHandler) NotesCreate(w http.ResponseWriter, r *http.Request) error {
-	return render(
+	return nh.render.Page(
 		w,
 		r,
-		newRenderOpts().WithPage("create.html").WithData(
+		render.NewOpts().WithPage("create.html").WithData(
 			map[string]any{"note": newNoteRequestDTO()},
 		),
 	)
@@ -108,10 +116,10 @@ func (nh noteHandler) NotesUpdate(w http.ResponseWriter, r *http.Request) error 
 	noteR.Content = note.Content.String
 	noteR.Color = note.Color.String
 
-	return render(
+	return nh.render.Page(
 		w,
 		r,
-		newRenderOpts().WithPage("note-edit.html").WithData(
+		render.NewOpts().WithPage("note-edit.html").WithData(
 			map[string]any{"note": noteR},
 		),
 	)
@@ -142,10 +150,10 @@ func (nh noteHandler) Save(w http.ResponseWriter, r *http.Request) error {
 	validator.ValidateForm(r.PostForm)
 	if !validator.Ok() {
 		page := support.TernaryIf(id > 0, "note-edit.html", "create.html")
-		render(
+		nh.render.Page(
 			w,
 			r,
-			newRenderOpts().WithPage(page).WithData(map[string]any{
+			render.NewOpts().WithPage(page).WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"note":        noteR,
 			}),
@@ -169,6 +177,7 @@ func (nh noteHandler) Save(w http.ResponseWriter, r *http.Request) error {
 
 	newNote, err := nh.noteRepo.Create(
 		r.Context(),
+		nh.sesMng.GetInt64(r.Context(), authutil.DefaultUserIDKey),
 		r.PostForm.Get("title"),
 		r.PostForm.Get("content"),
 		r.PostForm.Get("color"),

@@ -7,26 +7,32 @@ import (
 	"net/http"
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
+	"github.com/LeandroDeJesus-S/quicknote/internal/render"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
+
 	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
 	"github.com/LeandroDeJesus-S/quicknote/internal/validation"
+	"github.com/alexedwards/scs/v2"
 )
 
 // userHandler handles HTTP requests for users.
 type userHandler struct {
+	sesMng   *scs.SessionManager
 	repo     repo.UserRepository
 	pwHasher authutil.PasswordHasher
+
+	render render.TemplateRender
 }
 
 // NewUserHandler creates a new userHandler.
-func NewUserHandler(repo repo.UserRepository, pwHasher authutil.PasswordHasher) *userHandler {
-	uh := &userHandler{repo: repo, pwHasher: pwHasher}
+func NewUserHandler(repo repo.UserRepository, pwHasher authutil.PasswordHasher, sesMng *scs.SessionManager, render render.TemplateRender) *userHandler {
+	uh := &userHandler{repo: repo, pwHasher: pwHasher, sesMng: sesMng, render: render}
 	return uh
 }
 
 // SignIn handles the request to show the sign-in page.
 func (h *userHandler) SignIn(w http.ResponseWriter, r *http.Request) error {
-	return render(w, r, newRenderOpts().WithPage("user-signin.html"))
+	return h.render.Page(w, r, render.NewOpts().WithPage("user-signin.html"))
 }
 
 // SignInPost handles the request to signin a user.
@@ -44,10 +50,10 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 
 	validator.ValidateForm(r.PostForm)
 	if !validator.Ok() {
-		return render(
+		return h.render.Page(
 			w,
 			r,
-			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+			render.NewOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
 			}),
@@ -61,10 +67,10 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 		}
 
 		validator.AddError("email", "invalid credentials")
-		return render(
+		return h.render.Page(
 			w,
 			r,
-			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+			render.NewOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
 			}),
@@ -73,10 +79,10 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 
 	if !usr.Active.Bool {
 		validator.AddError("email", "your account is not active")
-		return render(
+		return h.render.Page(
 			w,
 			r,
-			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+			render.NewOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
 			}),
@@ -86,23 +92,37 @@ func (h *userHandler) SignInPost(w http.ResponseWriter, r *http.Request) error {
 	if ok, err := h.pwHasher.CheckPassword(r.PostForm.Get("password"), usr.Password.String); !ok {
 		validator.AddError("email", "invalid credentials")
 		slog.Error("failed to verify credentials", "error", err)
-		return render(
+		return h.render.Page(
 			w,
 			r,
-			newRenderOpts().WithPage("user-signin.html").WithData(map[string]any{
+			render.NewOpts().WithPage("user-signin.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
 			}),
 		)
 	}
 
-	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
+	if err := h.sesMng.RenewToken(r.Context()); err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to renew session token")
+	}
+
+	h.sesMng.Put(r.Context(), authutil.DefaultUserIDKey, usr.ID.Int.Int64())
+
+	if _, _, err := h.sesMng.Commit(r.Context()); err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to commit session")
+	}
+
+	slog.Debug("session after commit",
+		"exists", h.sesMng.Exists(r.Context(), "userId"),
+		"direct", h.sesMng.GetInt64(r.Context(), "userId"),
+	)
+	http.Redirect(w, r, "/notes", http.StatusSeeOther)
 	return nil
 }
 
 // SignUp handles the request to show the sign-up page.
 func (h *userHandler) SignUp(w http.ResponseWriter, r *http.Request) error {
-	return render(w, r, newRenderOpts().WithPage("user-signup.html"))
+	return h.render.Page(w, r, render.NewOpts().WithPage("user-signup.html"))
 }
 
 // SignUpPost handles the request to create a new user.
@@ -121,10 +141,10 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 
 	validator.ValidateForm(r.PostForm)
 	if !validator.Ok() {
-		return render(
+		return h.render.Page(
 			w,
 			r,
-			newRenderOpts().WithPage("user-signup.html").WithData(map[string]any{
+			render.NewOpts().WithPage("user-signup.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
 			}),
@@ -140,10 +160,10 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 
 	if errors.Is(err, repo.ErrDuplicatedEmail) {
 		validator.AddError("email", "email not available")
-		return render(
+		return h.render.Page(
 			w,
 			r,
-			newRenderOpts().WithPage("user-signup.html").WithData(map[string]any{
+			render.NewOpts().WithPage("user-signup.html").WithData(map[string]any{
 				"FieldErrors": validator.FieldErrors(),
 				"FormData":    map[string]string{"email": r.PostForm.Get("email")},
 			}),
@@ -160,10 +180,10 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	slog.Debug("user created", "id", usr.ID, "email", usr.Email, "created_at", usr.CreatedAt)
-	return render(
+	return h.render.Page(
 		w,
 		r,
-		newRenderOpts().WithPage("user-signup-success.html").WithData(map[string]any{"user_token": token.Token.String}),
+		render.NewOpts().WithPage("user-signup-success.html").WithData(map[string]any{"user_token": token.Token.String}),
 	)
 }
 
@@ -173,10 +193,10 @@ func (h *userHandler) Confirm(w http.ResponseWriter, r *http.Request) error {
 		slog.Error("failed to confirm user token", "error", err)
 		return errs.NewHTTPError(err, http.StatusBadRequest, "failed to confirm user")
 	}
-	return render(
+	return h.render.Page(
 		w,
 		r,
-		newRenderOpts().WithPage(
+		render.NewOpts().WithPage(
 			"user-confirm.html",
 		).WithData(
 			"your regestration was successfuly cofirmed",
@@ -185,6 +205,13 @@ func (h *userHandler) Confirm(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *userHandler) SignOut(w http.ResponseWriter, r *http.Request) error {
-	// TODO: implement signout
+	if err := h.sesMng.Destroy(r.Context()); err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to destroy session")
+	}
+	http.Redirect(w, r, "/users/signin", http.StatusSeeOther)
+	return nil
+}
+
+func (h *userHandler) Me(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }

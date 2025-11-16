@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"regexp"
 	"strings"
 	"time"
@@ -14,10 +15,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+var fieldNameRegex = regexp.MustCompile(`^[A-Za-z_]+$`)
+
 type Noter interface {
-	List(ctx context.Context) ([]models.Note, error)
+	List(ctx context.Context, userID int64) ([]models.Note, error)
 	ReadOne(ctx context.Context, tid int) (*models.Note, error)
-	Create(ctx context.Context, title, content, color string) (*models.Note, error)
+	Create(ctx context.Context, userID int64, title, content, color string) (*models.Note, error)
 	Update(ctx context.Context, id int, data map[string]any) (*models.Note, error)
 	Delete(ctx context.Context, id int) error
 }
@@ -29,10 +32,12 @@ type noteRepo struct {
 func NewNoteRepo(db *pgxpool.Pool) Noter {
 	return &noteRepo{db: db}
 }
-func (nr noteRepo) List(ctx context.Context) ([]models.Note, error) {
+
+func (nr noteRepo) List(ctx context.Context, userID int64) ([]models.Note, error) {
 	rows, err := nr.db.Query(
 		context.Background(),
-		"SELECT id, title, content, color, created_at, updated_at FROM notes",
+		"SELECT id, title, content, color, created_at, updated_at FROM notes WHERE user_id = $1",
+		userID,
 	)
 	if err != nil {
 		return nil, errs.NewRepoError(err)
@@ -65,9 +70,10 @@ func (nr noteRepo) ReadOne(ctx context.Context, id int) (*models.Note, error) {
 	return &note, nil
 }
 
-func (nr noteRepo) Create(ctx context.Context, title, content, color string) (*models.Note, error) {
+func (nr noteRepo) Create(ctx context.Context, userID int64, title, content, color string) (*models.Note, error) {
 	var note models.Note
 
+	note.UserID = pgtype.Numeric{Int: big.NewInt(userID), Valid: true}
 	note.Title = pgtype.Text{String: title, Valid: title != ""}
 	note.Content = pgtype.Text{String: content, Valid: content != ""}
 	note.Color = pgtype.Text{String: color, Valid: color != ""}
@@ -76,8 +82,8 @@ func (nr noteRepo) Create(ctx context.Context, title, content, color string) (*m
 
 	row := nr.db.QueryRow(
 		context.Background(),
-		"INSERT INTO notes (title, content, color, created_at, updated_at) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-		title, content, color, note.CreatedAt, note.UpdatedAt,
+		"INSERT INTO notes (title, content, color, user_id, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+		title, content, color, userID, note.CreatedAt, note.UpdatedAt,
 	)
 
 	if err := row.Scan(&note.ID); err != nil {
@@ -102,11 +108,7 @@ func (nr noteRepo) Update(ctx context.Context, id int, data map[string]any) (*mo
 	nmap := len(data)
 
 	for field, value := range data {
-		matches, err := regexp.MatchString("^[A-Za-z_]+$", field)
-		if err != nil {
-			return nil, errs.NewRepoError(fmt.Errorf("regexp error: %w", err))
-		}
-		if !matches {
+		if !fieldNameRegex.MatchString(field) {
 			return nil, errs.NewRepoError(fmt.Errorf("invalid field name: %s", field))
 		}
 

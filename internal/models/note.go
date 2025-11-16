@@ -11,4 +11,5 @@ type Note struct {
 	Color     pgtype.Text    `json:"color"`
 	CreatedAt pgtype.Date    `json:"created_at"`
 	UpdatedAt pgtype.Date    `json:"updated_at"`
+	UserID    pgtype.Numeric `json:"user_id"`
 }
