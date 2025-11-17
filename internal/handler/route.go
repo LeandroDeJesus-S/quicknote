@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/LeandroDeJesus-S/quicknote/config"
+	"github.com/LeandroDeJesus-S/quicknote/internal/mail"
 	"github.com/LeandroDeJesus-S/quicknote/internal/render"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
@@ -11,16 +14,10 @@ import (
 
 type Mux struct {
 	*http.ServeMux
-
-	noteRepo repo.Noter
-	userRepo repo.UserRepository
-
-	pwHasher   authutil.PasswordHasher
-	sessionMng *scs.SessionManager
 }
 
-func NewMux(noteRepo repo.Noter, userRepo repo.UserRepository, pwHasher authutil.PasswordHasher, sessionMng *scs.SessionManager) *Mux {
-	mux := &Mux{ServeMux: http.NewServeMux(), noteRepo: noteRepo, userRepo: userRepo, pwHasher: pwHasher, sessionMng: sessionMng}
+func NewMux(noteRepo repo.Noter, userRepo repo.UserRepository, pwHasher authutil.PasswordHasher, sessionMng *scs.SessionManager, mailer mail.Mailer, conf *config.Config) *Mux {
+	mux := &Mux{ServeMux: http.NewServeMux()}
 
 	renderer := render.NewTemplateRender(sessionMng)
 	renderer.WithGlobalTag("isAuthenticated", authutil.TagIsAuthenticated(sessionMng)).
@@ -31,9 +28,16 @@ func NewMux(noteRepo repo.Noter, userRepo repo.UserRepository, pwHasher authutil
 
 	homeHandler := NewHomeHandler(renderer)
 	noteHandler := NewNoteHandler(noteRepo, renderer, sessionMng)
-	userHandler := NewUserHandler(userRepo, mux.pwHasher, mux.sessionMng, renderer)
+	userHandler := NewUserHandler(
+		userRepo,
+		pwHasher,
+		sessionMng,
+		renderer,
+		mailer,
+		mountAppDomain(conf),
+	)
 
-	authMiddleware := authutil.NewAuthMiddleware(mux.sessionMng)
+	authMiddleware := authutil.NewAuthMiddleware(sessionMng)
 
 	mux.Handle("/", ErrorHandler(homeHandler.Home))
 	mux.Handle("GET /notes", authMiddleware.RequireAuth(ErrorHandler(noteHandler.ListNotes)))
@@ -62,4 +66,18 @@ func (m *Mux) WithMiddleware(mw ...func(http.Handler) http.Handler) http.Handler
 		wm = mw[i](wm)
 	}
 	return wm
+}
+
+func mountAppDomain(conf *config.Config) string {
+	scheme := "https"
+	if conf.DebugMode() {
+		scheme = "http"
+	}
+
+	host := conf.ServerHost
+	if conf.DebugMode() {
+		host = "localhost"
+	}
+
+	return fmt.Sprintf("%s://%s:%s", scheme, host, conf.ServerPort)
 }

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -18,12 +19,20 @@ type Config struct {
 	ServerPort string `env:"SERVER_PORT,8000"`
 
 	// secrets
-	SecretKey string `env:"SECRET_KEY,required"` // a key used to hashing and encryption tasks
-	DatabaseURL     string `env:"DATABASE_URL,required"`
+	SecretKey   string `env:"SECRET_KEY,required"` // a key used to hashing and encryption tasks
+	DatabaseURL string `env:"DATABASE_URL,required"`
 
 	// logging configs
 	LogLevel string `env:"LOG_LEVEL,info"` // the level of logging
 	LogOut   string `env:"LOG_OUT,stdout"` // the output of logging
+	Debug    string `env:"DEBUG,false"`    // debug mode
+
+	// mail configs
+	MailServer      string `env:"MAIL_SERVER,required"`
+	MailPort        string `env:"MAIL_PORT,required"`
+	MailUsername    string `env:"MAIL_USERNAME,required"`
+	MailPassword    string `env:"MAIL_PASSWORD,required"`
+	MailDefaultFrom string `env:"MAIL_DEFAULT_FROM,required"`
 }
 
 func (c Config) String() (vars string) {
@@ -92,6 +101,18 @@ func (c Config) LoggerOut() io.Writer {
 	default:
 		return os.Stdout
 	}
+}
+
+func (c Config) MailPortInt() int {
+	p, err := strconv.Atoi(c.MailPort)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
+func (c Config) DebugMode() bool {
+	return c.Debug == "true"
 }
 
 func MustLoadConfig() *Config {

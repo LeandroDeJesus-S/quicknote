@@ -3,10 +3,12 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
+	"github.com/LeandroDeJesus-S/quicknote/internal/mail"
 	"github.com/LeandroDeJesus-S/quicknote/internal/render"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 
@@ -22,11 +24,14 @@ type userHandler struct {
 	pwHasher authutil.PasswordHasher
 
 	render render.TemplateRender
+	mailer mail.Mailer
+
+	appDomain string
 }
 
 // NewUserHandler creates a new userHandler.
-func NewUserHandler(repo repo.UserRepository, pwHasher authutil.PasswordHasher, sesMng *scs.SessionManager, render render.TemplateRender) *userHandler {
-	uh := &userHandler{repo: repo, pwHasher: pwHasher, sesMng: sesMng, render: render}
+func NewUserHandler(repo repo.UserRepository, pwHasher authutil.PasswordHasher, sesMng *scs.SessionManager, render render.TemplateRender, mailer mail.Mailer, appDomain string) *userHandler {
+	uh := &userHandler{repo: repo, pwHasher: pwHasher, sesMng: sesMng, render: render, mailer: mailer, appDomain: appDomain}
 	return uh
 }
 
@@ -179,7 +184,23 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to create user token")
 	}
 
-	slog.Debug("user created", "id", usr.ID, "email", usr.Email, "created_at", usr.CreatedAt)
+	tokURL := fmt.Sprintf("%s/users/confirm/%s", h.appDomain, token.Token.String)
+	body, err := h.render.Mail("confirmation.html", tokURL)
+	if err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to render confirmation email")
+	}
+
+	if err := h.mailer.Send(mail.Message{
+		To:      []string{usr.Email.String},
+		Subject: "Your confirmation token",
+		Body:    body,
+		IsHTML:  true,
+	}); err != nil {
+		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to send confirmation email")
+	}
+
+	slog.Debug("user created", "id", usr.ID, "email", usr.Email, "created_at", usr.CreatedAt, "tokURL", tokURL)
+
 	return h.render.Page(
 		w,
 		r,

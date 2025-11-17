@@ -10,6 +10,7 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/config"
 	"github.com/LeandroDeJesus-S/quicknote/config/db"
 	"github.com/LeandroDeJesus-S/quicknote/internal/handler"
+	"github.com/LeandroDeJesus-S/quicknote/internal/mail"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
 	"github.com/alexedwards/scs/pgxstore"
@@ -28,6 +29,15 @@ func main() {
 
 	slog.Info("configurations loaded successfully", "server_host", conf.ServerHost, "server_port", conf.ServerPort)
 
+	mailer := mail.NewGOMailV2Mailer(
+		mail.NewConfig().
+			WithServer(conf.MailServer).
+			WithPort(conf.MailPortInt()).
+			// WithUsername(conf.MailUsername).
+			// WithPassword(conf.MailPassword).
+			WithDefaultFrom(conf.MailDefaultFrom),
+	)
+
 	noteRepo := repo.NewNoteRepo(pool)
 	userRepo := repo.NewUserRepo(pool)
 
@@ -37,7 +47,7 @@ func main() {
 	sessionMng.Store = pgxstore.New(pool)
 	pgxstore.NewWithCleanupInterval(pool, 12*time.Hour)
 
-	mux := handler.NewMux(noteRepo, userRepo, pwHasher, sessionMng)
+	mux := handler.NewMux(noteRepo, userRepo, pwHasher, sessionMng, mailer, conf)
 	muxH := mux.WithMiddleware(
 		sessionMng.LoadAndSave,
 		csrf.Protect(

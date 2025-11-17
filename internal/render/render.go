@@ -3,6 +3,7 @@ package render
 
 import (
 	"bytes"
+	"fmt"
 	"html/template"
 	"net/http"
 
@@ -12,6 +13,7 @@ import (
 
 type TemplateRender interface {
 	Page(w http.ResponseWriter, r *http.Request, opts *renderOpts) error
+	Mail(tplName string, data any) ([]byte, error)
 	WithGlobalTag(name string, tag DynamicTag) *templateRender
 }
 
@@ -63,4 +65,22 @@ func (tr *templateRender) Page(w http.ResponseWriter, r *http.Request, opts *ren
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	buff.WriteTo(w)
 	return nil
+}
+
+// Mail renders a HTML template to a email content.
+//
+// tplName is the name of the template to render (relative to the view/templates/mail/ directory
+// data is the data to pass to the template.
+func (tr *templateRender) Mail(tplName string, data any) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	t, err := template.ParseFiles(fmt.Sprintf("view/templates/mail/%s", tplName))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := t.Execute(buf, data); err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }

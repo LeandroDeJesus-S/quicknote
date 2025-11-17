@@ -37,6 +37,12 @@ services:
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=${DATABASE_URL}
       - GODOTENV=0
+      - MAIL_SERVER=${MAIL_SERVER}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_DEFAULT_FROM=${MAIL_DEFAULT_FROM}
+      - DEBUG=${DEBUG}
 
       - GOLANG_VERSION=1.25.1
     ports:
@@ -53,6 +59,14 @@ services:
     working_dir: /app
     volumes:
       - ./:/app
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - 1025:1025
+      - 8025:8025
+    networks:
+      - app_network
 
 volumes:
   pgdata:
