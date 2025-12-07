@@ -33,7 +33,7 @@ func (ro *renderOpts) WithStatus(s int) *renderOpts {
 
 // WithPage sets the page to be rendered.
 func (ro *renderOpts) WithPage(p string) *renderOpts {
-	ro.page = fmt.Sprintf("view/templates/pages/%s", p)
+	ro.page = fmt.Sprintf("templates/pages/%s", p)
 	return ro
 }
 

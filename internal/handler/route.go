@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"io/fs"
 	"net/http"
 
 	"github.com/LeandroDeJesus-S/quicknote/config"
@@ -10,6 +11,7 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
+	"github.com/LeandroDeJesus-S/quicknote/view"
 	"github.com/alexedwards/scs/v2"
 )
 
@@ -21,13 +23,19 @@ func NewMux(noteRepo repo.Noter, userRepo repo.UserRepository, pwHasher authutil
 	mux := &Mux{ServeMux: http.NewServeMux()}
 
 	renderer := render.NewTemplateRender(sessionMng)
+	renderer.WithEmbedFS(true)
 	renderer.WithGlobalTag("isAuthenticated", authutil.TagIsAuthenticated(sessionMng)).
 		WithGlobalTag("csrfField", authutil.TagCSRFField).
 		WithGlobalTag("flashMessage", support.TagFlashMessage(sessionMng))
 
 	errH := ErrorHandler{Render: renderer, Sess: sessionMng}
 
-	staticHandle := http.FileServer(http.Dir("view/static/"))
+	staticFS, err := fs.Sub(view.Assets, "static")
+	if err != nil {
+		panic(err)
+	}
+
+	staticHandle := http.FileServerFS(staticFS)
 	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandle))
 
 	homeHandler := NewHomeHandler(renderer)

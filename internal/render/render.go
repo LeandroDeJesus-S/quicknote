@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/LeandroDeJesus-S/quicknote/internal/errs"
+	"github.com/LeandroDeJesus-S/quicknote/view"
 	"github.com/alexedwards/scs/v2"
 )
 
@@ -19,6 +20,7 @@ type TemplateRender interface {
 
 type templateRender struct {
 	globalTags map[string]DynamicTag
+	useEmbedFS bool
 }
 
 func NewTemplateRender(sesMsg *scs.SessionManager) *templateRender {
@@ -31,6 +33,25 @@ func NewTemplateRender(sesMsg *scs.SessionManager) *templateRender {
 func (tr *templateRender) WithGlobalTag(name string, tag DynamicTag) *templateRender {
 	tr.globalTags[name] = tag
 	return tr
+}
+
+// WithEmbedFS sets the template render to use the embedded filesystem from [view.Assets].
+func (tr *templateRender) WithEmbedFS(enabled bool) *templateRender {
+	tr.useEmbedFS = enabled
+	return tr
+}
+
+// ParseAssets parses the given templates using the embedded filesystem or the filesystem.
+// The patterns are relative to the view/templates/ directory.
+func (tr *templateRender) ParseAssets(t *template.Template, patterns ...string) (*template.Template, error) {
+	if tr.useEmbedFS {
+		return t.ParseFS(view.Assets, patterns...)
+	}
+	patts := make([]string, len(patterns))
+	for i, p := range patterns {
+		patts[i] = fmt.Sprintf("view/%s", p)
+	}
+	return t.ParseFiles(patts...)
 }
 
 // render renders a template to the given http.ResponseWriter.
@@ -48,8 +69,9 @@ func (tr *templateRender) Page(w http.ResponseWriter, r *http.Request, opts *ren
 	}
 
 	tpl := template.New("").Funcs(tags)
-	tpl, err := tpl.ParseFiles(
-		"view/templates/base.html",
+	tpl, err := tr.ParseAssets(
+		tpl,
+		"templates/base.html",
 		opts.page,
 	)
 	if err != nil {
@@ -74,7 +96,7 @@ func (tr *templateRender) Page(w http.ResponseWriter, r *http.Request, opts *ren
 // data is the data to pass to the template.
 func (tr *templateRender) Mail(tplName string, data any) ([]byte, error) {
 	buf := new(bytes.Buffer)
-	t, err := template.ParseFiles(fmt.Sprintf("view/templates/mail/%s", tplName))
+	t, err := tr.ParseAssets(template.New(""), fmt.Sprintf("templates/mail/%s", tplName))
 	if err != nil {
 		return nil, err
 	}
