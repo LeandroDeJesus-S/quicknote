@@ -170,7 +170,8 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to hash password")
 	}
 
-	usr, err := h.repo.Create(r.Context(), r.PostForm.Get("email"), hashedPw)
+	tok := authutil.GenerateToken()
+	usr, token, err := h.repo.CreateUserAndToken(r.Context(), r.PostForm.Get("email"), hashedPw, tok)
 
 	if errors.Is(err, repo.ErrDuplicatedEmail) {
 		validator.AddError("email", "email not available")
@@ -186,11 +187,6 @@ func (h *userHandler) SignUpPost(w http.ResponseWriter, r *http.Request) error {
 
 	if err != nil {
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to create user")
-	}
-
-	token, err := h.repo.CreateUserToken(r.Context(), usr.ID.Int.Int64(), authutil.GenerateToken())
-	if err != nil {
-		return errs.NewHTTPError(err, http.StatusInternalServerError, "failed to create user token")
 	}
 
 	tokURL := fmt.Sprintf("%s/users/confirm/%s", h.appDomain, token.Token.String)

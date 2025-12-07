@@ -25,16 +25,19 @@ var (
 )
 
 type UserRepository interface {
-	Create(ctx context.Context, email, password string) (*models.User, error)                               // creates a new user
-	CreateUserToken(ctx context.Context, userID int64, token string) (*models.UserConfirmationToken, error) // creates a new token for a user
-	ConfirmUserWithToken(ctx context.Context, token string) error                                           // fetches a user's token where it's neither confirmed nor expired then marks it as confirmed
-	FindByEmail(ctx context.Context, email string) (*models.User, error)                                    // finds a user by its email
-	CheckResetToken(ctx context.Context, token string) error                                                // returns [ErrConfirmationTokenNotFound] error if the token was not found, [ErrTokenAlreadyConfirmed] if it was already confirmed, and [ErrTokenExpired] if it's expired
-	UpdatePasswordByToken(ctx context.Context, token, newPassword string) (string, error)                   // set the new password for the token owner and returns its email
-	UpdateUserToken(ctx context.Context, oldTokID int64, newTok string) error                               // updates the token for the new one
-	UserEmailByToken(ctx context.Context, token string) (string, error)                                     // returns the user's email by the token
-	UserPendingToken(ctx context.Context, userID int64) (*models.UserConfirmationToken, error)              // returns the user's pending token
+	Create(ctx context.Context, email, password string) (*models.User, error)                                                   // creates a new user
+	CreateUserAndToken(ctx context.Context, email, password, token string) (*models.User, *models.UserConfirmationToken, error) // performs both user and token creation in a single transaction
+	CreateUserToken(ctx context.Context, userID int64, token string) (*models.UserConfirmationToken, error)                     // creates a new token for a user
+	ConfirmUserWithToken(ctx context.Context, token string) error                                                               // fetches a user's token where it's neither confirmed nor expired then marks it as confirmed
+	FindByEmail(ctx context.Context, email string) (*models.User, error)                                                        // finds a user by its email
+	CheckResetToken(ctx context.Context, token string) error                                                                    // returns [ErrConfirmationTokenNotFound] error if the token was not found, [ErrTokenAlreadyConfirmed] if it was already confirmed, and [ErrTokenExpired] if it's expired
+	UpdatePasswordByToken(ctx context.Context, token, newPassword string) (string, error)                                       // set the new password for the token owner and returns its email
+	UpdateUserToken(ctx context.Context, oldTokID int64, newTok string) error                                                   // updates the token for the new one
+	UserEmailByToken(ctx context.Context, token string) (string, error)                                                         // returns the user's email by the token
+	UserPendingToken(ctx context.Context, userID int64) (*models.UserConfirmationToken, error)                                  // returns the user's pending token
 }
+
+type queryContextKey struct{}
 
 type UserRepo struct {
 	db *pgxpool.Pool
@@ -45,12 +48,20 @@ func NewUserRepo(db *pgxpool.Pool) UserRepository {
 }
 
 func (r *UserRepo) Create(ctx context.Context, email, password string) (*models.User, error) {
+	var qCtx interface {
+		QueryRow(ctx context.Context, query string, args ...any) pgx.Row
+	}
+	qCtx, ok := ctx.Value(queryContextKey{}).(pgx.Tx)
+	if !ok {
+		qCtx = r.db
+	}
+
 	var u models.User
 	u.Email = pgtype.Text{String: email, Valid: email != ""}
 	u.Password = pgtype.Text{String: password, Valid: password != ""}
 
 	query := "INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, created_at;"
-	if err := r.db.QueryRow(ctx, query, u.Email, u.Password).Scan(&u.ID, &u.CreatedAt); err != nil {
+	if err := qCtx.QueryRow(ctx, query, u.Email, u.Password).Scan(&u.ID, &u.CreatedAt); err != nil {
 		if strings.Contains(err.Error(), "violates unique constraint") {
 			return nil, ErrDuplicatedEmail
 		}
@@ -60,15 +71,43 @@ func (r *UserRepo) Create(ctx context.Context, email, password string) (*models.
 }
 
 func (r *UserRepo) CreateUserToken(ctx context.Context, userID int64, token string) (*models.UserConfirmationToken, error) {
+	var qCtx interface {
+		QueryRow(ctx context.Context, query string, args ...any) pgx.Row
+	}
+	qCtx, ok := ctx.Value(queryContextKey{}).(pgx.Tx)
+	if !ok {
+		qCtx = r.db
+	}
 	var u models.UserConfirmationToken
 
 	u.Token = pgtype.Text{String: token, Valid: true}
 	u.UserID = pgtype.Numeric{Int: big.NewInt(userID), Valid: true}
 	query := "INSERT INTO user_tokens (user_id, token) VALUES ($1, $2) RETURNING id, created_at, updated_at;"
-	if err := r.db.QueryRow(ctx, query, u.UserID, u.Token).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt); err != nil {
+	if err := qCtx.QueryRow(ctx, query, u.UserID, u.Token).Scan(&u.ID, &u.CreatedAt, &u.UpdatedAt); err != nil {
 		return nil, errs.NewRepoError(err)
 	}
 	return &u, nil
+}
+
+func (r *UserRepo) CreateUserAndToken(ctx context.Context, email, password, token string) (*models.User, *models.UserConfirmationToken, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, nil, errs.NewRepoError(err)
+	}
+	defer tx.Rollback(ctx)
+
+	queryContext := context.WithValue(ctx, queryContextKey{}, tx)
+	usr, err := r.Create(queryContext, email, password)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tok, err := r.CreateUserToken(queryContext, usr.ID.Int.Int64(), token)
+	if err != nil {
+		return nil, nil, err
+	}
+	tx.Commit(queryContext)
+	return usr, tok, nil
 }
 
 func (r *UserRepo) ConfirmUserWithToken(ctx context.Context, token string) error {
@@ -81,13 +120,19 @@ func (r *UserRepo) ConfirmUserWithToken(ctx context.Context, token string) error
 		return errs.NewRepoError(err)
 	}
 
-	if _, err := r.db.Exec(ctx, "UPDATE users SET active = TRUE, updated_at = now() WHERE id = $1", userID); err != nil {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
 		return errs.NewRepoError(err)
 	}
-	if _, err := r.db.Exec(ctx, "UPDATE user_tokens SET confirmed = TRUE, updated_at = now() WHERE id = $1", tokenID); err != nil {
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, "UPDATE users SET active = TRUE, updated_at = now() WHERE id = $1", userID); err != nil {
 		return errs.NewRepoError(err)
 	}
-	return nil
+	if _, err := tx.Exec(ctx, "UPDATE user_tokens SET confirmed = TRUE, updated_at = now() WHERE id = $1", tokenID); err != nil {
+		return errs.NewRepoError(err)
+	}
+	return tx.Commit(ctx)
 }
 
 func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*models.User, error) {
