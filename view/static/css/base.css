@@ -291,7 +291,7 @@
     }
 
     .error {
-        color: var(--danger);       
+        color: var(--danger);
         margin-block: 1rem;
     }
 
@@ -318,6 +318,13 @@
     .space-between {
         display: flex;
         justify-content: space-between;
+    }
+
+    .flash-message {
+        padding: 1rem;
+        border: 1px solid transparent;
+        border-radius: .25rem;
+        margin-bottom: 1rem;
     }
 }
 

@@ -17,7 +17,7 @@ type UserConfirmationToken struct {
 	ID        pgtype.Numeric `json:"id"`
 	UserID    pgtype.Numeric `json:"user_id"`
 	Token     pgtype.Text    `json:"token"`
-	Corfirmed pgtype.Bool    `json:"confirmed"`
+	Confirmed pgtype.Bool    `json:"confirmed"`
 	CreatedAt pgtype.Date    `json:"created_at"`
 	UpdatedAt pgtype.Date    `json:"updated_at"`
 }

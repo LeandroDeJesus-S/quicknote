@@ -3,6 +3,20 @@
 {{define "content"}}
 <form class="user-form" action="/users/signin" method="post">
     <h1>Entrar</h1>
+
+    {{with flashMessage}}
+    <p class="flash-message {{flashMessage.Typ}}">
+        {{flashMessage.Message}}
+    </p>
+    {{end}}
+
+    {{$token := .userToken}}
+    {{with .askResendToken}}
+        <div>
+            <p style="text-align:center;margin-block:.5rem">Não recebeu seu email de confirmação? <a href="/users/email-form?sub=resend-token">Solicite um novo token</a></p>
+        </div>
+    {{end}}
+
     <input type="hidden" name="captchaID" value="{{.CaptchaID}}">
     <label for="email">E-mail</label>
     {{with .FieldErrors}}
@@ -23,6 +37,8 @@
     <button class="success" type="submit">Entrar</button>
 
     <p>Não possui uma conta? <a href="/users/signup">Faça o Cadastro</a></p>
+    <p style="text-align:center;margin-block:.5rem"><a href="/users/forgot-password">Esqueci minha senha </a></p>
+    
 </form>{{end}}
 
 {{define "script"}}

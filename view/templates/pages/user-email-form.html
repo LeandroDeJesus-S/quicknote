@@ -1,0 +1,22 @@
+{{define "title"}}{{.Title}}{{end}}
+
+{{define "content"}}
+<form class="user-form" action="{{.Action}}" method="post">
+    <h1>{{.Title}}</h1>
+    {{with flashMessage}}
+    <p class="flash-message {{flashMessage.Typ}}">
+        {{flashMessage.Message}}
+    </p>
+    {{end}}
+
+    <label for="email">E-mail</label>
+    {{with .FieldErrors}}
+    <label class="error">{{.email}}</label>
+    {{end}}
+    <input name="email" type="text" id="email" value="{{.FormData.email}}">
+
+    {{csrfField}}
+    <button class="success" type="submit">Entrar</button>
+
+</form>
+{{end}}

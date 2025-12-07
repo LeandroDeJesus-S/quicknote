@@ -3,5 +3,11 @@
 {{define "content"}}
 <h1>Cadastro realizado com sucesso</h1>
 <p>Um email foi enviado para você com um link para confirmar sua conta.</p>
-{{end}}
+<p>Não recebeu seu email? <a href="/users/email-form?sub=resend-token">Solicite um novo token</a></p>
 
+{{with flashMessage}}
+<p class="flash-message {{flashMessage.Typ}}">
+    {{flashMessage.Message}}
+</p>
+{{end}}
+{{end}}

@@ -48,8 +48,8 @@ func (ro *renderOpts) WithTag(name string, tag DynamicTag) *renderOpts {
 	return ro
 }
 
-// DynamicTag wraps a coomon template tag function for tags witch depends on http.Request context.
-// It must return a function
+// DynamicTag wraps a common template tag function for tags witch depends on http.Request context.
+// It must be a function that returns another function
 type (
 	DynamicTag func(*http.Request) any
 )

@@ -8,6 +8,7 @@ import (
 	"github.com/LeandroDeJesus-S/quicknote/internal/mail"
 	"github.com/LeandroDeJesus-S/quicknote/internal/render"
 	"github.com/LeandroDeJesus-S/quicknote/internal/repo"
+	"github.com/LeandroDeJesus-S/quicknote/internal/support"
 	"github.com/LeandroDeJesus-S/quicknote/internal/support/authutil"
 	"github.com/alexedwards/scs/v2"
 )
@@ -21,7 +22,10 @@ func NewMux(noteRepo repo.Noter, userRepo repo.UserRepository, pwHasher authutil
 
 	renderer := render.NewTemplateRender(sessionMng)
 	renderer.WithGlobalTag("isAuthenticated", authutil.TagIsAuthenticated(sessionMng)).
-		WithGlobalTag("csrfField", authutil.TagCSRFField)
+		WithGlobalTag("csrfField", authutil.TagCSRFField).
+		WithGlobalTag("flashMessage", support.TagFlashMessage(sessionMng))
+
+	errH := ErrorHandler{Render: renderer, Sess: sessionMng}
 
 	staticHandle := http.FileServer(http.Dir("view/static/"))
 	mux.Handle("GET /static/", http.StripPrefix("/static/", staticHandle))
@@ -39,23 +43,29 @@ func NewMux(noteRepo repo.Noter, userRepo repo.UserRepository, pwHasher authutil
 
 	authMiddleware := authutil.NewAuthMiddleware(sessionMng)
 
-	mux.Handle("/", ErrorHandler(homeHandler.Home))
-	mux.Handle("GET /notes", authMiddleware.RequireAuth(ErrorHandler(noteHandler.ListNotes)))
-	mux.Handle("GET /notes/{id}", authMiddleware.RequireAuth(ErrorHandler(noteHandler.NotesDetail)))
-	mux.Handle("GET /notes/create", authMiddleware.RequireAuth(ErrorHandler(noteHandler.NotesCreate)))
-	mux.Handle("DELETE /notes/{id}", authMiddleware.RequireAuth(ErrorHandler(noteHandler.NotesDelete)))
-	mux.Handle("POST /notes", authMiddleware.RequireAuth(ErrorHandler(noteHandler.Save)))
-	mux.Handle("GET /notes/{id}/edit", authMiddleware.RequireAuth(ErrorHandler(noteHandler.NotesUpdate)))
+	mux.Handle("/", errH.Wrap(homeHandler.Home))
+	mux.Handle("GET /notes", authMiddleware.RequireAuth(errH.Wrap(noteHandler.ListNotes)))
+	mux.Handle("GET /notes/{id}", authMiddleware.RequireAuth(errH.Wrap(noteHandler.NotesDetail)))
+	mux.Handle("GET /notes/create", authMiddleware.RequireAuth(errH.Wrap(noteHandler.NotesCreate)))
+	mux.Handle("DELETE /notes/{id}", authMiddleware.RequireAuth(errH.Wrap(noteHandler.NotesDelete)))
+	mux.Handle("POST /notes", authMiddleware.RequireAuth(errH.Wrap(noteHandler.Save)))
+	mux.Handle("GET /notes/{id}/edit", authMiddleware.RequireAuth(errH.Wrap(noteHandler.NotesUpdate)))
 
-	mux.Handle("GET /users/signup", ErrorHandler(userHandler.SignUp))
-	mux.Handle("POST /users/signup", ErrorHandler(userHandler.SignUpPost))
+	mux.Handle("GET /users/signup", errH.Wrap(userHandler.SignUp))
+	mux.Handle("POST /users/signup", errH.Wrap(userHandler.SignUpPost))
+	mux.Handle("GET /users/signup-success", errH.Wrap(userHandler.SignUpSuccess))
 
-	mux.Handle("GET /users/signin", ErrorHandler(userHandler.SignIn))
-	mux.Handle("POST /users/signin", ErrorHandler(userHandler.SignInPost))
+	mux.Handle("GET /users/signin", errH.Wrap(userHandler.SignIn))
+	mux.Handle("POST /users/signin", errH.Wrap(userHandler.SignInPost))
 
-	mux.Handle("GET /users/confirm/{token}", ErrorHandler(userHandler.Confirm))
-	mux.Handle("GET /users/signout", authMiddleware.RequireAuth(ErrorHandler(userHandler.SignOut)))
-	mux.Handle("GET /users/me", authMiddleware.RequireAuth(ErrorHandler(userHandler.Me)))
+	mux.Handle("GET /users/confirm/{token}", errH.Wrap(userHandler.Confirm))
+	mux.Handle("GET /users/signout", authMiddleware.RequireAuth(errH.Wrap(userHandler.SignOut)))
+	mux.Handle("GET /users/me", authMiddleware.RequireAuth(errH.Wrap(userHandler.Me)))
+	mux.Handle("GET /users/email-form", errH.Wrap(userHandler.EmailForm))
+	mux.Handle("POST /users/forgot-password", errH.Wrap(userHandler.ForgotPasswordPost))
+	mux.Handle("GET /users/reset-password/{token}", errH.Wrap(userHandler.ResetPassword))
+	mux.Handle("POST /users/reset-password", errH.Wrap(userHandler.ResetPasswordPost))
+	mux.Handle("POST /users/resend-token", errH.Wrap(userHandler.ResendToken))
 
 	return mux
 }

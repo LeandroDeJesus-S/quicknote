@@ -1,0 +1,56 @@
+{{define "title"}}Sign In{{end}}
+
+{{define "content"}}
+<form class="user-form" action="/users/signin" method="post">
+    <h1>Change password</h1>
+    <input type="hidden" name="captchaID" value="{{.CaptchaID}}">
+    <input type="hidden" name="token" value="{{.token}}">
+
+    <div>
+        <label for="password">Nova Senha</label>
+        {{with .FieldErrors}}
+        <label class="error">{{.password}}</label>
+        {{end}}
+
+        <input type="password" name="new_password" minlength="6" id="new_password">
+
+    </div>
+
+    <div>
+        <label for="password_confirm">Nova Senha</label>
+        {{with .FieldErrors}}
+        <label class="error">{{.password_confirm}}</label>
+        {{end}}
+
+        <input type="password" minlength="6" name="password_confirm" id="password_confirm">
+
+    </div>
+    <input type="checkbox"><span>Mostrar senhas</span>
+
+    {{csrfField}}
+    <button class="success" disabled type="submit">Confirm</button>
+
+</form>{{end}}
+
+{{define "script"}}
+<script>
+$('input[type=checkbox]').click(function(){
+    if ($(this).is(':checked')) {
+        $('#password').attr('type', 'text')
+        $('#password_confirm').attr('type', 'text')
+    } else {
+        $('#password').attr('type', 'password')
+        $('#password_confirm').attr('type', 'password')
+    }
+})
+$("input").on('keyup', function() {
+            const password = $("#new_password").val()
+            const confirm = $("#password_confirm").val()
+            if (password.length > 5 && password === confirm) {
+                $("button").removeAttr("disabled")
+            } else {
+                $("button").attr("disabled", "disabled")
+            }
+        })
+</script>
+{{end}}

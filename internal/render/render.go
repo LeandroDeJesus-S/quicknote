@@ -62,6 +62,7 @@ func (tr *templateRender) Page(w http.ResponseWriter, r *http.Request, opts *ren
 		return errs.NewHTTPError(err, http.StatusInternalServerError, "error executing template")
 	}
 
+	w.WriteHeader(opts.status)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	buff.WriteTo(w)
 	return nil
